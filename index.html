@@ -752,6 +752,793 @@
         categoryForm: { id: '', name: '', color: '#3498db' },
         providerForm: { id: '', name: '' },
 
+       <!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FF Finanças</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    const { createClient } = supabase;
+    const supabaseClient = createClient(
+      'https://bnckbipxefthevbnxfwl.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuY2tiaXB4ZWZ0aGV2Ym54ZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MTg2MTQsImV4cCI6MjA5NTQ5NDYxNH0.F59d6_584FWW4IqPWSvZNUypLaXIDoTRGd8azgnrjVA'
+    );
+    window.supabaseClient = supabaseClient;
+  </script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#2C3E50',
+            secondary: '#E67E22',
+            accent: '#F1C40F',
+            success: '#27AE60',
+            warning: '#C0392B',
+            background: '#ECF0F1',
+            darkbg: '#1A252F'
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    [x-cloak] { display: none !important; }
+
+    /* Trial badge pulse */
+    @keyframes pulse-badge {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .trial-badge { animation: pulse-badge 2s ease-in-out infinite; }
+
+    /* Tela de bloqueio */
+    .lock-screen {
+      background: linear-gradient(135deg, #1A252F 0%, #2C3E50 50%, #1a1a2e 100%);
+    }
+    .lock-card {
+      backdrop-filter: blur(12px);
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-8px); }
+    }
+    .float-icon { animation: float 3s ease-in-out infinite; }
+  </style>
+</head>
+
+<body class="bg-background min-h-screen text-gray-800 dark:bg-darkbg dark:text-white"
+      x-data="financeApp()"
+      x-init="init()">
+
+  <div class="fixed top-4 right-4 space-y-2 z-50 pointer-events-none">
+    <template x-for="note in notifications" :key="note.id">
+      <div x-show="true"
+           x-transition:enter="transition ease-out duration-300"
+           x-transition:enter-start="opacity-0 translate-y-2"
+           x-transition:enter-end="opacity-100 translate-y-0"
+           class="px-4 py-2 rounded shadow pointer-events-auto"
+           :class="{
+             'bg-success text-white': note.type === 'success',
+             'bg-warning text-white': note.type === 'warning',
+             'bg-red-600 text-white': note.type === 'error'
+           }">
+        <span x-text="note.message"></span>
+      </div>
+    </template>
+  </div>
+
+  <section x-show="!user" x-cloak class="p-4">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded shadow max-w-5xl mx-auto mt-10">
+      <h2 class="text-3xl font-bold mb-2">Entrar no Sistema</h2>
+      <p class="text-gray-500 text-sm mb-6">✨ Novas contas incluem <strong>7 dias grátis</strong> de avaliação</p>
+      <div class="grid md:grid-cols-3 gap-3">
+        <input type="email" id="email" placeholder="Seu email"
+               class="border rounded px-3 py-3 text-black">
+        <input type="password" id="password" placeholder="Sua senha"
+               class="border rounded px-3 py-3 text-black">
+        <div class="flex gap-2">
+          <button onclick="signup()"
+                  class="bg-blue-500 text-white px-4 py-3 rounded w-full">
+            Criar Conta
+          </button>
+          <button onclick="login()"
+                  class="bg-green-600 text-white px-4 py-3 rounded w-full">
+            Entrar
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div x-show="user && licenseExpired" x-cloak
+       class="fixed inset-0 lock-screen flex items-center justify-center z-50 p-4">
+    <div class="lock-card rounded-2xl p-10 max-w-md w-full text-center text-white shadow-2xl">
+      <div class="float-icon text-6xl mb-6">🔒</div>
+      <h1 class="text-3xl font-bold mb-2">Período de Avaliação Encerrado</h1>
+      <p class="text-gray-300 mb-6">
+        Seu trial de <strong>7 dias</strong> expirou.<br>
+        Para continuar usando o <strong>FF Finanças</strong>, adquira uma licença.
+      </p>
+
+      <div class="bg-white/10 rounded-xl p-4 mb-6 text-sm text-gray-300 text-left space-y-1">
+        <p>📧 <span x-text="user?.email"></span></p>
+        <p>📅 Trial iniciado em: <span x-text="trialStartFormatted()"></span></p>
+        <p>⏰ Trial expirou em: <span x-text="trialExpiredFormatted()"></span></p>
+      </div>
+
+      <div class="space-y-3">
+        <a href="mailto:cbest07@gmail.com?subject=Licença FF Finanças"
+           class="block w-full bg-secondary hover:bg-orange-500 text-white font-bold py-3 rounded-xl transition-colors">
+          📩 Adquirir Licença
+        </a>
+        <button @click="logout()"
+                class="w-full bg-white/10 hover:bg-white/20 text-white py-3 rounded-xl transition-colors text-sm">
+          Sair da conta
+        </button>
+      </div>
+
+      <p class="text-xs text-gray-500 mt-6">
+        Já adquiriu? Aguarde a ativação pela equipe ou entre em contato.
+      </p>
+    </div>
+  </div>
+
+  <div x-show="user && !licenseExpired" x-cloak>
+
+    <header class="bg-primary text-white p-4">
+      <div class="flex flex-col lg:flex-row justify-between gap-3 items-center">
+        <div class="flex items-center gap-3">
+          <h1 class="text-3xl font-bold">FF Finanças</h1>
+          <span x-show="isOnTrial && !licenseActive"
+                class="trial-badge bg-accent text-black text-xs font-bold px-3 py-1 rounded-full">
+            🕐 Trial: <span x-text="trialDaysLeft()"></span> dia(s)
+          </span>
+          <span x-show="licenseActive"
+                class="bg-success text-white text-xs font-bold px-3 py-1 rounded-full">
+            ✅ Licença Ativa
+          </span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button x-show="isAdmin()" @click="openAdminPanel()"
+                  class="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded shadow flex items-center gap-1">
+            👑 Painel Admin
+          </button>
+
+          <input type="text" placeholder="Buscar..."
+                 class="px-3 py-2 rounded text-black"
+                 x-model="search">
+          <select class="px-3 py-2 rounded text-black"
+                  x-model="filterStatus">
+            <option value="">Todos</option>
+            <option value="pendente">Pendentes</option>
+            <option value="paga">Pagas</option>
+            <option value="atrasada">Atrasadas</option>
+          </select>
+
+          <button @click="togglePayPanel()"
+                  class="bg-success px-4 py-2 rounded">
+            A Pagar
+          </button>
+
+          <button @click="showBillModal = true"
+                  class="bg-accent text-black font-bold px-4 py-2 rounded">
+            + Nova Conta
+          </button>
+
+          <button @click="showCategoryModal = true"
+                  class="bg-primary text-white px-4 py-2 rounded">
+            Categorias
+          </button>
+
+          <button @click="showProviderModal = true"
+                  class="bg-primary text-white px-4 py-2 rounded">
+            Fornecedores
+          </button>
+
+          <button @click="resetAll()"
+                  class="bg-secondary text-white px-4 py-2 rounded">
+            Restaurar
+          </button>
+
+          <button @click="showReportModal = true"
+                  class="bg-secondary text-white px-4 py-2 rounded">
+            Relatórios
+          </button>
+
+          <button @click="toggleDark()"
+                  class="bg-secondary px-4 py-2 rounded">
+            🌙
+          </button>
+
+          <button @click="logout()"
+                  class="bg-red-500 px-4 py-2 rounded">
+            Sair
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div x-show="isOnTrial && !licenseActive && trialDaysLeft() <= 2" x-cloak
+         class="bg-warning text-white text-center py-2 px-4 text-sm font-semibold">
+      ⚠️ Seu período de avaliação termina em <span x-text="trialDaysLeft()"></span> dia(s)! Entre em contato para adquirir sua licença.
+    </div>
+
+    <div x-show="showPayPanel" x-cloak class="bg-white dark:bg-gray-800 shadow p-4">
+      <h2 class="text-2xl font-bold mb-4">Contas Pendentes / Atrasadas</h2>
+      <div class="overflow-auto">
+        <table class="w-full">
+          <thead class="bg-gray-100 dark:bg-gray-700">
+            <tr>
+              <th class="p-2 text-left">Fornecedor</th>
+              <th class="p-2 text-left">Parcela</th>
+              <th class="p-2 text-left">Valor</th>
+              <th class="p-2 text-left">Vencimento</th>
+              <th class="p-2 text-left">Status</th>
+              <th class="p-2 text-center">Pagar</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="bill in billsToPay()" :key="bill.id">
+              <tr class="border-b"
+                  :class="{'bg-red-100 dark:bg-red-900': isOverdue(bill)}">
+                <td class="p-2" x-text="bill.provider"></td>
+                <td class="p-2">
+                  <span x-show="bill.installmentTotal > 1">
+                    <span x-text="bill.installment"></span> /
+                    <span x-text="bill.installmentTotal"></span>
+                  </span>
+                  <span x-show="bill.installmentTotal <= 1">—</span>
+                </td>
+                <td class="p-2" x-text="formatCurrency(bill.amount)"></td>
+                <td class="p-2" x-text="bill.dueDate"></td>
+                <td class="p-2">
+                  <span x-show="isOverdue(bill)" class="text-warning font-bold">Atrasada</span>
+                  <span x-show="!isOverdue(bill)" class="text-yellow-500 font-bold">Pendente</span>
+                </td>
+                <td class="p-2 text-center">
+                  <button @click="payBill(bill)"
+                          class="bg-success text-white px-3 py-1 rounded">
+                    Pagar
+                  </button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <main class="p-4">
+
+      <section class="grid md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
+          <h2 class="font-bold">Pendentes</h2>
+          <p class="text-3xl" x-text="pendingCount()"></p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
+          <h2 class="font-bold text-warning">Atrasadas</h2>
+          <p class="text-3xl text-warning" x-text="overdueCount()"></p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
+          <h2 class="font-bold text-success">Pago Hoje</h2>
+          <p class="text-2xl text-success font-bold"
+             x-text="formatCurrency(totalPaidToday())"></p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
+          <h2 class="font-bold">Total Geral</h2>
+          <p class="text-2xl" x-text="formatCurrency(totalAmount())"></p>
+        </div>
+      </section>
+
+      <div class="bg-white dark:bg-gray-800 rounded shadow overflow-auto">
+        <table class="w-full">
+          <thead class="bg-gray-100 dark:bg-gray-700">
+            <tr>
+              <th class="p-3 text-left">Fornecedor</th>
+              <th class="p-3 text-left">Categoria</th>
+              <th class="p-3 text-left">Parcela</th>
+              <th class="p-3 text-left">Valor</th>
+              <th class="p-3 text-left">Vencimento</th>
+              <th class="p-3 text-left">Status</th>
+              <th class="p-3 text-left">Pago</th>
+              <th class="p-3 text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="bill in filteredBills()" :key="bill.id">
+              <tr class="border-b border-gray-200 dark:border-gray-700"
+                  :class="{'bg-red-100 dark:bg-red-900': isOverdue(bill)}">
+                <td class="p-3" x-text="bill.provider"></td>
+                <td class="p-3">
+                  <span class="px-2 py-1 rounded text-white text-xs"
+                        :style="'background:' + categoryColor(bill.categoryId)"
+                        x-text="categoryName(bill.categoryId)"></span>
+                </td>
+                <td class="p-3">
+                  <span x-show="bill.installmentTotal > 1">
+                    <span x-text="bill.installment"></span> /
+                    <span x-text="bill.installmentTotal"></span>
+                  </span>
+                  <span x-show="bill.installmentTotal <= 1">—</span>
+                </td>
+                <td class="p-3" x-text="formatCurrency(bill.amount)"></td>
+                <td class="p-3" x-text="bill.dueDate"></td>
+                <td class="p-3">
+                  <span x-show="bill.status==='paga'" class="text-success font-bold">Paga</span>
+                  <span x-show="bill.status!=='paga' && isOverdue(bill)" class="text-warning font-bold">Atrasada</span>
+                  <span x-show="bill.status==='pendente' && !isOverdue(bill)" class="text-yellow-500 font-bold">Pendente</span>
+                </td>
+                <td class="p-3">
+                  <span x-show="bill.paidAmount"
+                        x-text="formatCurrency(bill.paidAmount)"
+                        class="font-bold text-success"></span>
+                  <span x-show="!bill.paidAmount">—</span>
+                </td>
+                <td class="p-3 text-center space-x-1">
+                  <button @click="payBill(bill)"
+                          class="bg-success text-white px-2 py-1 rounded">Pagar</button>
+                  <button @click="editBill(bill)"
+                          class="bg-primary text-white px-2 py-1 rounded">✏️</button>
+                  <button @click="removeBill(bill.id)"
+                          class="bg-warning text-white px-2 py-1 rounded">✕</button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+    </main>
+
+    <div x-show="showBillModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @keydown.escape.window="showBillModal = false">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-xl"
+           @click.away="showBillModal = false"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        <h2 class="text-2xl font-bold mb-4">
+          <span x-show="!editMode">Nova Conta</span>
+          <span x-show="editMode">Editar Conta</span>
+        </h2>
+        <form @submit.prevent="saveBill()">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block mb-1">Fornecedor</label>
+              <div class="flex items-center space-x-2">
+                <select class="flex-1 border rounded px-3 py-2 text-black"
+                        x-model="form.provider" required>
+                  <option value="">Selecione</option>
+                  <template x-for="p in providers" :key="p.id">
+                    <option :value="p.name" x-text="p.name"></option>
+                  </template>
+                </select>
+                <button type="button" @click="openProviderForm()"
+                        class="bg-accent text-black px-3 py-2 rounded">+</button>
+              </div>
+            </div>
+            <div>
+              <label class="block mb-1">Categoria</label>
+              <div class="flex items-center space-x-2">
+                <select class="flex-1 border rounded px-3 py-2 text-black"
+                        x-model="form.categoryId" required>
+                  <option value="">Selecione</option>
+                  <template x-for="cat in categories" :key="cat.id">
+                    <option :value="cat.id" x-text="cat.name"></option>
+                  </template>
+                </select>
+                <button type="button" @click="openCategoryForm()"
+                        class="bg-accent text-black px-3 py-2 rounded">+</button>
+              </div>
+            </div>
+            <div>
+              <label class="block mb-1">Valor</label>
+              <input type="number" step="0.01"
+                     class="w-full border rounded px-3 py-2 text-black"
+                     x-model="form.amount" required>
+            </div>
+            <div>
+              <label class="block mb-1">Vencimento</label>
+              <input type="date"
+                     class="w-full border rounded px-3 py-2 text-black"
+                     x-model="form.dueDate" required>
+            </div>
+            <div>
+              <label class="block mb-1">Parcelas</label>
+              <input type="number" min="1"
+                     class="w-full border rounded px-3 py-2 text-black"
+                     x-model="form.installments">
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end gap-2">
+            <button type="button" @click="showBillModal = false"
+                    class="bg-gray-500 text-white px-4 py-2 rounded">Cancelar</button>
+            <button type="submit"
+                    class="bg-primary text-white px-4 py-2 rounded">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div x-show="showCategoryModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @keydown.escape.window="showCategoryModal = false">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-2xl"
+           @click.away="showCategoryModal = false"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-2xl font-bold">Gerenciar Categorias</h2>
+          <button @click="showCategoryModal = false" class="text-gray-600 hover:text-gray-800">&times;</button>
+        </div>
+        <button @click="openCategoryForm()"
+                class="bg-primary text-white px-4 py-2 rounded mb-4">Nova Categoria</button>
+        <div class="overflow-auto">
+          <table class="w-full">
+            <thead class="bg-gray-100 dark:bg-gray-700">
+              <tr>
+                <th class="p-2">Nome</th>
+                <th class="p-2">Cor</th>
+                <th class="p-2 text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="cat in categories" :key="cat.id">
+                <tr class="border-b">
+                  <td class="p-2" x-text="cat.name"></td>
+                  <td class="p-2">
+                    <div class="w-5 h-5 rounded" :style="'background:' + cat.color"></div>
+                  </td>
+                  <td class="p-2 text-center space-x-1">
+                    <button @click="openCategoryForm(cat)"
+                            class="bg-primary text-white px-2 py-1 rounded">✏️</button>
+                    <button @click="deleteCategory(cat.id)"
+                            class="bg-warning text-white px-2 py-1 rounded">✕</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div x-show="showCategoryFormModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @keydown.escape.window="showCategoryFormModal = false">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-md"
+           @click.away="showCategoryFormModal = false"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        <h2 class="text-2xl font-bold mb-4">
+          <span x-show="!editCategoryMode">Nova Categoria</span>
+          <span x-show="editCategoryMode">Editar Categoria</span>
+        </h2>
+        <form @submit.prevent="saveCategory()">
+          <label class="block mb-1">Nome</label>
+          <input type="text" class="w-full border rounded px-3 py-2 mb-2 text-black"
+                 x-model="categoryForm.name" required>
+          <label class="block mb-1">Cor</label>
+          <input type="color" class="w-full border rounded px-3 py-2 mb-4 text-black"
+                 x-model="categoryForm.color" required>
+          <div class="flex justify-end gap-2">
+            <button type="button" @click="showCategoryFormModal = false"
+                    class="bg-gray-500 text-white px-4 py-2 rounded">Cancelar</button>
+            <button type="submit" class="bg-primary text-white px-4 py-2 rounded">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div x-show="showProviderModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @keydown.escape.window="showProviderModal = false">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-xl"
+           @click.away="showProviderModal = false"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-2xl font-bold">Gerenciar Fornecedores</h2>
+          <button @click="showProviderModal = false" class="text-gray-600 hover:text-gray-800">&times;</button>
+        </div>
+        <button @click="openProviderForm()"
+                class="bg-primary text-white px-4 py-2 rounded mb-4">Novo Fornecedor</button>
+        <div class="overflow-auto">
+          <table class="w-full">
+            <thead class="bg-gray-100 dark:bg-gray-700">
+              <tr>
+                <th class="p-2">Nome</th>
+                <th class="p-2 text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="p in providers" :key="p.id">
+                <tr class="border-b">
+                  <td class="p-2" x-text="p.name"></td>
+                  <td class="p-2 text-center space-x-1">
+                    <button @click="openProviderForm(p)"
+                            class="bg-primary text-white px-2 py-1 rounded">✏️</button>
+                    <button @click="deleteProvider(p.id)"
+                            class="bg-warning text-white px-2 py-1 rounded">✕</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div x-show="showProviderFormModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @keydown.escape.window="showProviderFormModal = false">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-md"
+           @click.away="showProviderFormModal = false"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        <h2 class="text-2xl font-bold mb-4">
+          <span x-show="!editProviderMode">Novo Fornecedor</span>
+          <span x-show="editProviderMode">Editar Fornecedor</span>
+        </h2>
+        <form @submit.prevent="saveProvider()">
+          <label class="block mb-1">Nome</label>
+          <input type="text" class="w-full border rounded px-3 py-2 mb-4 text-black"
+                 x-model="providerForm.name" required>
+          <div class="flex justify-end gap-2">
+            <button type="button" @click="showProviderFormModal = false"
+                    class="bg-gray-500 text-white px-4 py-2 rounded">Cancelar</button>
+            <button type="submit" class="bg-primary text-white px-4 py-2 rounded">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div x-show="showReportModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @keydown.escape.window="showReportModal = false">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-4xl"
+           @click.away="showReportModal = false"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-2xl font-bold">Relatórios</h2>
+          <button @click="showReportModal = false" class="text-gray-600 hover:text-gray-800">&times;</button>
+        </div>
+        <div class="grid md:grid-cols-4 gap-4 mb-4">
+          <div>
+            <label class="block mb-1">Data início</label>
+            <input type="date" class="w-full border rounded px-3 py-2 text-black" x-model="reportStartDate">
+          </div>
+          <div>
+            <label class="block mb-1">Data fim</label>
+            <input type="date" class="w-full border rounded px-3 py-2 text-black" x-model="reportEndDate">
+          </div>
+          <div>
+            <label class="block mb-1">Categoria</label>
+            <select class="w-full border rounded px-3 py-2 text-black" x-model="reportCategoryId">
+              <option value="">Todas</option>
+              <template x-for="cat in categories" :key="cat.id">
+                <option :value="cat.id" x-text="cat.name"></option>
+              </template>
+            </select>
+          </div>
+          <div>
+            <label class="block mb-1">Fornecedor</label>
+            <select class="w-full border rounded px-3 py-2 text-black" x-model="reportProviderId">
+              <option value="">Todos</option>
+              <template x-for="p in providers" :key="p.id">
+                <option :value="p.id" x-text="p.name"></option>
+              </template>
+            </select>
+          </div>
+          <div class="md:col-span-4">
+            <label class="block mb-1">Status</label>
+            <select class="w-full border rounded px-3 py-2 text-black" x-model="reportStatus">
+              <option value="">Todos</option>
+              <option value="pendente">Pendente</option>
+              <option value="paga">Paga</option>
+              <option value="atrasada">Atrasada</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 mb-4">
+          <button @click="exportCSV()" class="bg-primary text-white px-4 py-2 rounded">Exportar CSV</button>
+          <button @click="showReportModal = false" class="bg-gray-500 text-white px-4 py-2 rounded">Fechar</button>
+        </div>
+        <div class="overflow-auto">
+          <table class="w-full">
+            <thead class="bg-gray-100 dark:bg-gray-700">
+              <tr>
+                <th class="p-2 text-left">Fornecedor</th>
+                <th class="p-2 text-left">Categoria</th>
+                <th class="p-2 text-left">Valor</th>
+                <th class="p-2 text-left">Vencimento</th>
+                <th class="p-2 text-left">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="bill in filteredReportBills()" :key="bill.id">
+                <tr class="border-b" :class="{'bg-red-100 dark:bg-red-900': isOverdue(bill)}">
+                  <td class="p-2" x-text="bill.provider"></td>
+                  <td class="p-2" x-text="categoryName(bill.categoryId)"></td>
+                  <td class="p-2" x-text="formatCurrency(bill.amount)"></td>
+                  <td class="p-2" x-text="bill.dueDate"></td>
+                  <td class="p-2">
+                    <span x-show="bill.status==='paga'" class="text-success font-bold">Paga</span>
+                    <span x-show="bill.status!=='paga' && isOverdue(bill)" class="text-warning font-bold">Atrasada</span>
+                    <span x-show="bill.status==='pendente' && !isOverdue(bill)" class="text-yellow-500 font-bold">Pendente</span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+            <tfoot class="bg-gray-200 dark:bg-gray-700">
+              <tr>
+                <td colspan="2" class="p-2 font-bold text-right">Totais:</td>
+                <td class="p-2 font-bold" x-text="formatCurrency(reportTotalAmount())"></td>
+                <td colspan="2"></td>
+              </tr>
+            </tfoot>
+          </table>
+          <div class="mt-4 text-sm text-gray-600 dark:text-gray-300"
+               x-show="filteredReportBills().length===0">
+            Nenhum registro encontrado com os filtros selecionados.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div x-show="showAdminModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
+         @keydown.escape.window="showAdminModal = false">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-xl w-full max-w-5xl max-h-[85vh] overflow-y-auto shadow-2xl"
+           @click.away="showAdminModal = false"
+           x-transition:enter="transition ease-out duration-200">
+        <div class="flex justify-between items-center mb-6 border-b pb-2">
+          <h2 class="text-2xl font-bold text-purple-600 flex items-center gap-2">👑 Controle Geral de Licenças (Admin)</h2>
+          <button @click="showAdminModal = false" class="text-2xl font-bold hover:text-red-500">&times;</button>
+        </div>
+
+        <div class="overflow-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-100 dark:bg-gray-700">
+              <tr>
+                <th class="p-3 text-left">E-mail do Usuário</th>
+                <th class="p-3 text-left">Início do Trial</th>
+                <th class="p-3 text-left">Dias Restantes</th>
+                <th class="p-3 text-center">Status Licença</th>
+                <th class="p-3 text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="lic in adminLicenses" :key="lic.id">
+                <tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td class="p-3 font-semibold" x-text="lic.user_email || 'Usuário Antigo ('+lic.user_id.substring(0,6)+'...)''"></td>
+                  <td class="p-3" x-text="new Date(lic.trial_start).toLocaleDateString('pt-BR')"></td>
+                  <td class="p-3">
+                    <span class="font-bold" :class="calculateAdminDaysLeft(lic.trial_start) <= 0 ? 'text-red-500' : 'text-green-500'"
+                          x-text="calculateAdminDaysLeft(lic.trial_start) + ' dias'"></span>
+                  </td>
+                  <td class="p-3 text-center">
+                    <span x-show="lic.license_active" class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-bold">ATIVA (PAGA)</span>
+                    <span x-show="!lic.license_active && calculateAdminDaysLeft(lic.trial_start) > 0" class="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-bold">EM TRIAL</span>
+                    <span x-show="!lic.license_active && calculateAdminDaysLeft(lic.trial_start) <= 0" class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-bold">EXPIRADA / BLOQUEADA</span>
+                  </td>
+                  <td class="p-3 text-center space-x-2">
+                    <button @click="toggleLicenseStatus(lic)"
+                            class="text-white px-3 py-1 rounded font-bold text-xs"
+                            :class="lic.license_active ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-600 hover:bg-green-700'">
+                      <span x-text="lic.license_active ? '🚫 Revogar' : '⚡ Ativar Licença'"></span>
+                    </button>
+                    <button @click="deleteUserLicenseRow(lic.id)"
+                            class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs">✕</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div> <script>
+    async function signup() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const { data, error } = await supabaseClient.auth.signUp({ email, password });
+      if (error) { alert(error.message); return; }
+
+      // Cria registro de licença/trial para o novo usuário salvando o e-mail também
+      if (data?.user) {
+        const trialStart = new Date().toISOString();
+        await supabaseClient.from('user_licenses').insert([{
+          user_id: data.user.id,
+          user_email: data.user.email,
+          trial_start: trialStart,
+          license_active: false
+        }]);
+      }
+
+      alert('Conta criada! Você tem 7 dias de avaliação gratuita.');
+    }
+
+    async function login() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) { alert(error.message); return; }
+      location.reload();
+    }
+  </script>
+
+  <script>
+    function financeApp() {
+      return {
+        // ---------- STATE ----------
+        user: null,
+        bills: [],
+        categories: [],
+        providers: [],
+        notifications: [],
+        adminLicenses: [], // Armazena todas as licenças dos clientes
+
+        // Licença / Trial do usuário logado
+        licenseExpired: false,
+        licenseActive: false,
+        isOnTrial: false,
+        trialStart: null,
+        trialDays: 7, 
+
+        // filtros e telas
+        search: '',
+        filterStatus: '',
+        showPayPanel: true,
+        showBillModal: false,
+        showCategoryModal: false,
+        showProviderModal: false,
+        showCategoryFormModal: false,
+        showProviderFormModal: false,
+        showReportModal: false,
+        showAdminModal: false, // Controle da tela secreta
+
+        reportStartDate: '',
+        reportEndDate: '',
+        reportCategoryId: '',
+        reportProviderId: '',
+        reportStatus: '',
+
+        editMode: false,
+        editCategoryMode: false,
+        editProviderMode: false,
+
+        form: {
+          id: '', provider: '', categoryId: '', amount: '', dueDate: '',
+          status: 'pendente', paidAmount: '', paidDate: '',
+          installments: 1, installment: 1, installmentTotal: 1
+        },
+        categoryForm: { id: '', name: '', color: '#3498db' },
+        providerForm: { id: '', name: '' },
+
         // ---------- INICIALIZAÇÃO ----------
         async init() {
           const { data: { user } } = await supabaseClient.auth.getUser();
@@ -771,20 +1558,25 @@
           }
         },
 
+        // Define quem é o Administrador do Sistema
+        isAdmin() {
+          return this.user && this.user.email === 'cbest07@gmail.com';
+        },
+
         // ---------- VERIFICAÇÃO DE LICENÇA ----------
         async checkLicense(userId) {
-          // Busca registro de licença do usuário
           const { data, error } = await supabaseClient
             .from('user_licenses')
             .select('*')
             .eq('user_id', userId)
             .single();
 
-          // Se não existe registro, cria um (compatibilidade com usuários antigos)
+          // Se não existe registro, cria um e salva o e-mail atual
           if (error || !data) {
             const trialStart = new Date().toISOString();
             await supabaseClient.from('user_licenses').insert([{
               user_id: userId,
+              user_email: this.user.email,
               trial_start: trialStart,
               license_active: false
             }]);
@@ -795,32 +1587,35 @@
             return;
           }
 
+          // Se o usuário já existe mas não tinha o e-mail salvo na tabela, atualiza para retrocompatibilidade
+          if (!data.user_email && this.user.email) {
+            await supabaseClient.from('user_licenses').update({ user_email: this.user.email }).eq('id', data.id);
+          }
+
           this.licenseActive = data.license_active === true;
           this.trialStart = new Date(data.trial_start);
 
-          // Se tem licença ativa paga, libera tudo
+          // Admin pessoal nunca expira
+          if (this.isAdmin()) {
+            this.licenseExpired = false;
+            this.isOnTrial = false;
+            return;
+          }
+
           if (this.licenseActive) {
             this.licenseExpired = false;
             this.isOnTrial = false;
             return;
           }
 
-          // Verifica se o trial ainda está válido
           const now = new Date();
           const diffMs = now - this.trialStart;
           const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
           this.isOnTrial = true;
-
-          if (diffDays > this.trialDays) {
-            // Trial expirado → bloqueia
-            this.licenseExpired = true;
-          } else {
-            this.licenseExpired = false;
-          }
+          this.licenseExpired = diffDays > this.trialDays;
         },
 
-        // Dias restantes do trial
         trialDaysLeft() {
           if (!this.trialStart) return 0;
           const now = new Date();
@@ -840,6 +1635,47 @@
           const exp = new Date(this.trialStart);
           exp.setDate(exp.getDate() + this.trialDays);
           return exp.toLocaleDateString('pt-BR');
+        },
+
+        // ---------- RECURSOS DO PAINEL DE ADMIN ----------
+        async openAdminPanel() {
+          if (!this.isAdmin()) return;
+          const { data, error } = await supabaseClient.from('user_licenses').select('*').order('created_at', { ascending: false });
+          if (error) { this.showToast('Erro ao ler licenças', 'error'); return; }
+          this.adminLicenses = data || [];
+          this.showAdminModal = true;
+        },
+
+        calculateAdminDaysLeft(trialStartDateString) {
+          const start = new Date(trialStartDateString);
+          const now = new Date();
+          const diffMs = now - start;
+          const diffDays = diffMs / (1000 * 60 * 60 * 24);
+          const left = Math.ceil(this.trialDays - diffDays);
+          return left < 0 ? 0 : left;
+        },
+
+        async toggleLicenseStatus(lic) {
+          const nextState = !lic.license_active;
+          const { error } = await supabaseClient
+            .from('user_licenses')
+            .update({ license_active: nextState })
+            .eq('id', lic.id);
+
+          if (error) {
+            this.showToast('Erro ao atualizar status', 'error');
+          } else {
+            lic.license_active = nextState;
+            this.showToast('Licença modificada com sucesso!', 'success');
+          }
+        },
+
+        async deleteUserLicenseRow(id) {
+          if (!confirm('Deseja mesmo remover esta linha de licença?')) return;
+          const { error } = await supabaseClient.from('user_licenses').delete().eq('id', id);
+          if (error) { this.showToast('Erro ao deletar', 'error'); return; }
+          this.adminLicenses = this.adminLicenses.filter(l => l.id !== id);
+          this.showToast('Registro deletado', 'success');
         },
 
         // ---------- NOTIFICAÇÕES ----------
