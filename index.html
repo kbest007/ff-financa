@@ -669,38 +669,61 @@
           <table class="w-full text-sm">
             <thead class="bg-gray-100 dark:bg-gray-700">
               <tr>
-                <th class="p-3 text-left">E-mail do Usuário</th>
-                <th class="p-3 text-left">Início do Trial</th>
-                <th class="p-3 text-left">Dias Restantes</th>
-                <th class="p-3 text-center">Status Licença</th>
-                <th class="p-3 text-center">Ações</th>
-              </tr>
+                 <th class="p-3 text-left">E-mail do Usuário</th>
+                 <th class="p-3 text-left">ID</th>
+                 <th class="p-3 text-left">Início do Trial</th>
+                 <th class="p-3 text-left">Dias Restantes</th>
+                 <th class="p-3 text-center">Status Licença</th>
+                 <th class="p-3 text-center">Ações</th>
+               </tr>
             </thead>
             <tbody>
               <template x-for="lic in adminLicenses" :key="lic.id">
-                <tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td class="p-3 font-semibold" x-text="lic.user_email || 'Usuário Antigo ('+lic.user_id.substring(0,6)+'...)''"></td>
-                  <td class="p-3" x-text="new Date(lic.trial_start).toLocaleDateString('pt-BR')"></td>
-                  <td class="p-3">
-                    <span class="font-bold" :class="calculateAdminDaysLeft(lic.trial_start) <= 0 ? 'text-red-500' : 'text-green-500'"
-                          x-text="calculateAdminDaysLeft(lic.trial_start) + ' dias'"></span>
-                  </td>
-                  <td class="p-3 text-center">
-                    <span x-show="lic.license_active" class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-bold">ATIVA (PAGA)</span>
-                    <span x-show="!lic.license_active && calculateAdminDaysLeft(lic.trial_start) > 0" class="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-bold">EM TRIAL</span>
-                    <span x-show="!lic.license_active && calculateAdminDaysLeft(lic.trial_start) <= 0" class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-bold">EXPIRADA / BLOQUEADA</span>
-                  </td>
-                  <td class="p-3 text-center space-x-2">
-                    <button @click="toggleLicenseStatus(lic)"
-                            class="text-white px-3 py-1 rounded font-bold text-xs"
-                            :class="lic.license_active ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-600 hover:bg-green-700'">
-                      <span x-text="lic.license_active ? '🚫 Revogar' : '⚡ Ativar Licença'"></span>
-                    </button>
-                    <button @click="deleteUserLicenseRow(lic.id)"
-                            class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs">✕</button>
-                  </td>
-                </tr>
-              </template>
+  <tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
+    <td class="p-3 font-semibold">
+      <span x-text="lic.user_email || 'Sem e-mail'"></span>
+    </td>
+    <td class="p-3 text-xs font-mono">
+      <span x-text="lic.user_id.substring(0,8)"></span>
+    </td>
+    <td class="p-3"
+        x-text="new Date(lic.trial_start).toLocaleDateString('pt-BR')">
+    </td>
+    <td class="p-3">
+      <span class="font-bold"
+            :class="calculateAdminDaysLeft(lic.trial_start) <= 0 ? 'text-red-500' : 'text-green-500'"
+            x-text="calculateAdminDaysLeft(lic.trial_start) + ' dias'">
+      </span>
+    </td>
+    <td class="p-3 text-center">
+      <span x-show="lic.license_active"
+            class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-bold">
+        ATIVA (PAGA)
+      </span>
+      <span x-show="!lic.license_active && calculateAdminDaysLeft(lic.trial_start) > 0"
+            class="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-bold">
+        EM TRIAL
+      </span>
+      <span x-show="!lic.license_active && calculateAdminDaysLeft(lic.trial_start) <= 0"
+            class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-bold">
+        EXPIRADA / BLOQUEADA
+      </span>
+    </td>
+    <td class="p-3 text-center space-x-2">
+      <button
+        @click="toggleLicenseStatus(lic)"
+        class="text-white px-3 py-1 rounded font-bold text-xs"
+        :class="lic.license_active ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-600 hover:bg-green-700'">
+        <span x-text="lic.license_active ? '🚫 Revogar' : '⚡ Ativar Licença'"></span>
+      </button>
+      <button
+        @click="deleteUserLicenseRow(lic.id)"
+        class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs">
+        ✕
+      </button>
+    </td>
+  </tr>
+            </template>
             </tbody>
           </table>
         </div>
