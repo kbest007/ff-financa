@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FF Finanças</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Alpine -->
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Supabase client -->
+  <script>
+    const { createClient } = supabase;
+    const supabaseClient = createClient(
+      'https://bnckbipxefthevbnxfwl.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuY2tiaXB4ZWZ0aGV2Ym54ZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MTg2MTQsImV4cCI6MjA5NTQ5NDYxNH0.F59d6_584FWW4IqPWSvZNUypLaXIDoTRGd8azgnrjVA'
+    );
+    window.supabaseClient = supabaseClient;
+  </script>
+
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#2C3E50',
+            secondary: '#E67E22',
+            accent: '#F1C40F',
+            success: '#27AE60',
+            warning: '#C0392B',
+            background: '#ECF0F1',
+            darkbg: '#1A252F'
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    [x-cloak] {
+      display: none !important;
+    }
+  </style>
+</head>
+
+<body class="bg-background min-h-screen text-gray-800 dark:bg-darkbg dark:text-white"
+      x-data="financeApp()"
+      x-init="init()">
+
+  <!-- TOASTS -->
+  <div class="fixed top-4 right-4 space-y-2 z-50 pointer-events-none">
+    <template x-for="note in notifications" :key="note.id">
+      <div x-show="true"
+           x-transition:enter="transition ease-out duration-300"
+           x-transition:enter-start="opacity-0 translate-y-2"
+           x-transition:enter-end="opacity-100 translate-y-0"
+           class="px-4 py-2 rounded shadow pointer-events-auto"
+           :class="{
+             'bg-success text-white': note.type === 'success',
+             'bg-warning text-white': note.type === 'warning',
+             'bg-red-600 text-white': note.type === 'error'
+           }">
+        <span x-text="note.message"></span>
+      </div>
+    </template>
+  </div>
+
+  <!-- LOGIN -->
+  <section x-show="!user" x-cloak class="p-4">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded shadow max-w-5xl mx-auto mt-10">
+      <h2 class="text-3xl font-bold mb-6">Entrar no Sistema</h2>
+      <div class="grid md:grid-cols-3 gap-3">
+        <input type="email" id="email" placeholder="Seu email"
+               class="border rounded px-3 py-3 text-black">
+        <input type="password" id="password" placeholder="Sua senha"
+               class="border rounded px-3 py-3 text-black">
+        <div class="flex gap-2">
+          <button onclick="signup()"
+                  class="bg-blue-500 text-white px-4 py-3 rounded w-full">
+            Criar Conta
+          </button>
+          <button onclick="login()"
+                  class="bg-green-600 text-white px-4 py-3 rounded w-full">
+            Entrar
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SISTEMA -->
+  <div x-show="user" x-cloak>
+
+    <!-- HEADER -->
+    <header class="bg-primary text-white p-4">
+      <div class="flex flex-col lg:flex-row justify-between gap-3 items-center">
+        <h1 class="text-3xl font-bold">FF Finanças</h1>
+        <div class="flex flex-wrap gap-2">
+          <input type="text" placeholder="Buscar..."
+                 class="px-3 py-2 rounded text-black"
+                 x-model="search">
+          <select class="px-3 py-2 rounded text-black"
+                  x-model="filterStatus">
+            <option value="">Todos</option>
+            <option value="pendente">Pendentes</option>
+            <option value="paga">Pagas</option>
+            <option value="atrasada">Atrasadas</option>
+          </select>
+
+          <button @click="togglePayPanel()"
+                  class="bg-success px-4 py-2 rounded">
+            A Pagar
+          </button>
+
+          <button @click="showBillModal = true"
+                  class="bg-accent text-black font-bold px-4 py-2 rounded">
+            + Nova Conta
+          </button>
+
+          <button @click="showCategoryModal = true"
+                  class="bg-primary text-white px-4 py-2 rounded">
+            Categorias
+          </button>
+
+          <button @click="showProviderModal = true"
+                  class="bg-primary text-white px-4 py-2 rounded">
+            Fornecedores
+          </button>
+
+          <button @click="resetAll()"
+                  class="bg-secondary text-white px-4 py-2 rounded">
+            Restaurar
+          </button>
+
+          <button @click="showReportModal = true"
+                  class="bg-secondary text-white px-4 py-2 rounded">
+            Relatórios
+          </button>
+
+          <button @click="toggleDark()"
+                  class="bg-secondary px-4 py-2 rounded">
+            🌙
+          </button>
+
+          <button @click="logout()"
+                  class="bg-red-500 px-4 py-2 rounded">
+            Sair
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- PAINEL DE CONTAS A PAGAR -->
+    <div x-show="showPayPanel" x-cloak class="bg-white dark:bg-gray-800 shadow p-4">
+      <h2 class="text-2xl font-bold mb-4">Contas Pendentes / Atrasadas</h2>
+      <div class="overflow-auto">
+        <table class="w-full">
+          <thead class="bg-gray-100 dark:bg-gray-700">
+            <tr>
+              <th class="p-2 text-left">Fornecedor</th>
+              <th class="p-2 text-left">Parcela</th>
+              <th class="p-2 text-left">Valor</th>
+              <th class="p-2 text-left">Vencimento</th>
+              <th class="p-2 text-left">Status</th>
+              <th class="p-2 text-center">Pagar</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="bill in billsToPay()" :key="bill.id">
+              <tr class="border-b"
+                  :class="{'bg-red-100 dark:bg-red-900': isOverdue(bill)}">
+                <td class="p-2" x-text="bill.provider"></td>
+                <td class="p-2">
+                  <span x-show="bill.installmentTotal > 1">
+                    <span x-text="bill.installment"></span> /
+                    <span x-text="bill.installmentTotal"></span>
+                  </span>
+                  <span x-show="bill.installmentTotal <= 1">—</span>
+                </td>
+                <td class="p-2" x-text="formatCurrency(bill.amount)"></td>
+                <td class="p-2" x-text="bill.dueDate"></td>
+                <td class="p-2">
+                  <span x-show="isOverdue(bill)" class="text-warning font-bold">Atrasada</span>
+                  <span x-show="!isOverdue(bill)" class="text-yellow-500 font-bold">Pendente</span>
+                </td>
+                <td class="p-2 text-center">
+                  <button @click="payBill(bill)"
+                          class="bg-success text-white px-3 py-1 rounded">
+                    Pagar
+                  </button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <main class="p-4">
+
+      <!-- DASHBOARD -->
+      <section class="grid md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
+          <h2 class="font-bold">Pendentes</h2>
+          <p class="text-3xl" x-text="pendingCount()"></p>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
+          <h2 class="font-bold text-warning">Atrasadas</h2>
+          <p class="text-3xl text-warning" x-text="overdueCount()"></p>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
+          <h2 class="font-bold text-success">Pago Hoje</h2>
+          <p class="text-2xl text-success font-bold"
+             x-text="formatCurrency(totalPaidToday())"></p>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
+          <h2 class="font-bold">Total Geral</h2>
+          <p class="text-2xl" x-text="formatCurrency(totalAmount())"></p>
+        </div>
+      </section>
+
+      <!-- TABELA DE CONTAS -->
+      <div class="bg-white dark:bg-gray-800 rounded shadow overflow-auto">
+        <table class="w-full">
+          <thead class="bg-gray-100 dark:bg-gray-700">
+            <tr>
+              <th class="p-3 text-left">Fornecedor</th>
+              <th class="p-3 text-left">Categoria</th>
+              <th class="p-3 text-left">Parcela</th>
+              <th class="p-3 text-left">Valor</th>
+              <th class="p-3 text-left">Vencimento</th>
+              <th class="p-3 text-left">Status</th>
+              <th class="p-3 text-left">Pago</th>
+              <th class="p-3 text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="bill in filteredBills()" :key="bill.id">
+              <tr class="border-b border-gray-200 dark:border-gray-700"
+                  :class="{'bg-red-100 dark:bg-red-900': isOverdue(bill)}">
+                <td class="p-3" x-text="bill.provider"></td>
+                <td class="p-3">
+                  <span class="px-2 py-1 rounded text-white text-xs"
+                        :style="'background:' + categoryColor(bill.categoryId)"
+                        x-text="categoryName(bill.categoryId)"></span>
+                </td>
+                <td class="p-3">
+                  <span x-show="bill.installmentTotal > 1">
+                    <span x-text="bill.installment"></span> /
+                    <span x-text="bill.installmentTotal"></span>
+                  </span>
+                  <span x-show="bill.installmentTotal <= 1">—</span>
+                </td>
+                <td class="p-3" x-text="formatCurrency(bill.amount)"></td>
+                <td class="p-3" x-text="bill.dueDate"></td>
+                <td class="p-3">
+                  <span x-show="bill.status==='paga'" class="text-success font-bold">Paga</span>
+                  <span x-show="bill.status!=='paga' && isOverdue(bill)" class="text-warning font-bold">Atrasada</span>
+                  <span x-show="bill.status==='pendente' && !isOverdue(bill)" class="text-yellow-500 font-bold">Pendente</span>
+                </td>
+                <td class="p-3">
+                  <span x-show="bill.paidAmount"
+                        x-text="formatCurrency(bill.paidAmount)"
+                        class="font-bold text-success"></span>
+                  <span x-show="!bill.paidAmount">—</span>
+                </td>
+                <td class="p-3 text-center space-x-1">
+                  <button @click="payBill(bill)"
+                          class="bg-success text-white px-2 py-1 rounded">Pagar</button>
+                  <button @click="editBill(bill)"
+                          class="bg-primary text-white px-2 py-1 rounded">✏️</button>
+                  <button @click="removeBill(bill.id)"
+                          class="bg-warning text-white px-2 py-1 rounded">✕</button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+    </main>
+
+    <!-- MODAL DE CONTAS -->
+    <div x-show="showBillModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @keydown.escape.window="showBillModal = false">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-xl"
+           @click.away="showBillModal = false"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        <h2 class="text-2xl font-bold mb-4">
+          <span x-show="!editMode">Nova Conta</span>
+          <span x-show="editMode">Editar Conta</span>
+        </h2>
+
+        <form @submit.prevent="saveBill()">
+          <div class="grid grid-cols-2 gap-4">
+
+            <!-- Fornecedor -->
+            <div>
+              <label class="block mb-1">Fornecedor</label>
+              <div class="flex items-center space-x-2">
+                <select class="flex-1 border rounded px-3 py-2 text-black"
+                        x-model="form.provider"
+                        required>
+                  <option value="">Selecione</option>
+                  <template x-for="p in providers" :key="p.id">
+                    <option :value="p.name" x-text="p.name"></option>
+                  </template>
+                </select>
+                <button type="button"
+                        @click="openProviderForm()"
+                        class="bg-accent text-black px-3 py-2 rounded" title="Novo fornecedor">+</button>
+              </div>
+            </div>
+
+            <!-- Categoria -->
+            <div>
+              <label class="block mb-1">Categoria</label>
+              <div class="flex items-center space-x-2">
+                <select class="flex-1 border rounded px-3 py-2 text-black"
+                        x-model="form.categoryId"
+                        required>
+                  <option value="">Selecione</option>
+                  <template x-for="cat in categories" :key="cat.id">
+                    <option :value="cat.id" x-text="cat.name"></option>
+                  </template>
+                </select>
+                <button type="button"
+                        @click="openCategoryForm()"
+                        class="bg-accent text-black px-3 py-2 rounded" title="Nova categoria">+</button>
+              </div>
+            </div>
+
+            <!-- Valor -->
+            <div>
+              <label class="block mb-1">Valor</label>
+              <input type="number" step="0.01"
+                     class="w-full border rounded px-3 py-2 text-black"
+                     x-model="form.amount"
+                     required>
+            </div>
+
+            <!-- Vencimento -->
+            <div>
+              <label class="block mb-1">Vencimento</label>
+              <input type="date"
+                     class="w-full border rounded px-3 py-2 text-black"
+                     x-model="form.dueDate"
+                     required>
+            </div>
+
+            <!-- Parcelas -->
+            <div>
+              <label class="block mb-1">Parcelas</label>
+              <input type="number"
+                     min="1"
+                     class="w-full border rounded px-3 py-2 text-black"
+                     x-model="form.installments">
+            </div>
+
+          </div>
+
+          <div class="mt-6 flex justify-end gap-2">
+            <button type="button"
+                    @click="showBillModal = false"
+                    class="bg-gray-500 text-white px-4 py-2 rounded">
+              Cancelar
+            </button>
+            <button type="submit"
+                    class="bg-primary text-white px-4 py-2 rounded">
+              Salvar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL DE CATEGORIAS -->
+    <div x-show="showCategoryModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @keydown.escape.window="showCategoryModal = false">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-2xl"
+           @click.away="showCategoryModal = false"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-2xl font-bold">Gerenciar Categorias</h2>
+          <button @click="showCategoryModal = false"
+                  class="text-gray-600 hover:text-gray-800">&times;</button>
+        </div>
+
+        <button @click="openCategoryForm()"
+                class="bg-primary text-white px-4 py-2 rounded mb-4">Nova Categoria</button>
+
+        <div class="overflow-auto">
+          <table class="w-full">
+            <thead class="bg-gray-100 dark:bg-gray-700">
+              <tr>
+                <th class="p-2">Nome</th>
+                <th class="p-2">Cor</th>
+                <th class="p-2 text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="cat in categories" :key="cat.id">
+                <tr class="border-b">
+                  <td class="p-2" x-text="cat.name"></td>
+                  <td class="p-2">
+                    <div class="w-5 h-5 rounded"
+                         :style="'background:' + cat.color"></div>
+                  </td>
+                  <td class="p-2 text-center space-x-1">
+                    <button @click="openCategoryForm(cat)"
+                            class="bg-primary text-white px-2 py-1 rounded">✏️</button>
+                    <button @click="deleteCategory(cat.id)"
+                            class="bg-warning text-white px-2 py-1 rounded">✕</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DE CADASTRO/EDIÇÃO DE CATEGORIA -->
+    <div x-show="showCategoryFormModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @keydown.escape.window="showCategoryFormModal = false">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-md"
+           @click.away="showCategoryFormModal = false"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        <h2 class="text-2xl font-bold mb-4">
+          <span x-show="!editCategoryMode">Nova Categoria</span>
+          <span x-show="editCategoryMode">Editar Categoria</span>
+        </h2>
+        <form @submit.prevent="saveCategory()">
+          <label class="block mb-1">Nome</label>
+          <input type="text"
+                 class="w-full border rounded px-3 py-2 mb-2 text-black"
+                 x-model="categoryForm.name"
+                 required>
+          <label class="block mb-1">Cor</label>
+          <input type="color"
+                 class="w-full border rounded px-3 py-2 mb-4 text-black"
+                 x-model="categoryForm.color"
+                 required>
+          <div class="flex justify-end gap-2">
+            <button type="button"
+                    @click="showCategoryFormModal = false"
+                    class="bg-gray-500 text-white px-4 py-2 rounded">Cancelar</button>
+            <button type="submit"
+                    class="bg-primary text-white px-4 py-2 rounded">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL DE FORNECEDORES -->
+    <div x-show="showProviderModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @keydown.escape.window="showProviderModal = false">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-xl"
+           @click.away="showProviderModal = false"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-2xl font-bold">Gerenciar Fornecedores</h2>
+          <button @click="showProviderModal = false"
+                  class="text-gray-600 hover:text-gray-800">&times;</button>
+        </div>
+
+        <button @click="openProviderForm()"
+                class="bg-primary text-white px-4 py-2 rounded mb-4">Novo Fornecedor</button>
+
+        <div class="overflow-auto">
+          <table class="w-full">
+            <thead class="bg-gray-100 dark:bg-gray-700">
+              <tr>
+                <th class="p-2">Nome</th>
+                <th class="p-2 text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="p in providers" :key="p.id">
+                <tr class="border-b">
+                  <td class="p-2" x-text="p.name"></td>
+                  <td class="p-2 text-center space-x-1">
+                    <button @click="openProviderForm(p)"
+                            class="bg-primary text-white px-2 py-1 rounded">✏️</button>
+                    <button @click="deleteProvider(p.id)"
+                            class="bg-warning text-white px-2 py-1 rounded">✕</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DE CADASTRO/EDIÇÃO DE FORNECEDOR -->
+    <div x-show="showProviderFormModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @keydown.escape.window="showProviderFormModal = false">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-md"
+           @click.away="showProviderFormModal = false"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        <h2 class="text-2xl font-bold mb-4">
+          <span x-show="!editProviderMode">Novo Fornecedor</span>
+          <span x-show="editProviderMode">Editar Fornecedor</span>
+        </h2>
+        <form @submit.prevent="saveProvider()">
+          <label class="block mb-1">Nome</label>
+          <input type="text"
+                 class="w-full border rounded px-3 py-2 mb-4 text-black"
+                 x-model="providerForm.name"
+                 required>
+          <div class="flex justify-end gap-2">
+            <button type="button"
+                    @click="showProviderFormModal = false"
+                    class="bg-gray-500 text-white px-4 py-2 rounded">Cancelar</button>
+            <button type="submit"
+                    class="bg-primary text-white px-4 py-2 rounded">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL DE RELATÓRIOS -->
+    <div x-show="showReportModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @keydown.escape.window="showReportModal = false">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-4xl"
+           @click.away="showReportModal = false"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-2xl font-bold">Relatórios</h2>
+          <button @click="showReportModal = false"
+                  class="text-gray-600 hover:text-gray-800">&times;</button>
+        </div>
+
+        <!-- filtros -->
+        <div class="grid md:grid-cols-4 gap-4 mb-4">
+          <div>
+            <label class="block mb-1">Data início</label>
+            <input type="date"
+                   class="w-full border rounded px-3 py-2 text-black"
+                   x-model="reportStartDate">
+          </div>
+
+          <div>
+            <label class="block mb-1">Data fim</label>
+            <input type="date"
+                   class="w-full border rounded px-3 py-2 text-black"
+                   x-model="reportEndDate">
+          </div>
+
+          <div>
+            <label class="block mb-1">Categoria</label>
+            <select class="w-full border rounded px-3 py-2 text-black"
+                    x-model="reportCategoryId">
+              <option value="">Todas</option>
+              <template x-for="cat in categories" :key="cat.id">
+                <option :value="cat.id" x-text="cat.name"></option>
+              </template>
+            </select>
+          </div>
+
+          <div>
+            <label class="block mb-1">Fornecedor</label>
+            <select class="w-full border rounded px-3 py-2 text-black"
+                    x-model="reportProviderId">
+              <option value="">Todos</option>
+              <template x-for="p in providers" :key="p.id">
+                <option :value="p.id" x-text="p.name"></option>
+              </template>
+            </select>
+          </div>
+
+          <div class="md:col-span-4">
+            <label class="block mb-1">Status</label>
+            <select class="w-full border rounded px-3 py-2 text-black"
+                    x-model="reportStatus">
+              <option value="">Todos</option>
+              <option value="pendente">Pendente</option>
+              <option value="paga">Paga</option>
+              <option value="atrasada">Atrasada</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 mb-4">
+          <button @click="exportCSV()"
+                  class="bg-primary text-white px-4 py-2 rounded">Exportar CSV</button>
+          <button @click="showReportModal = false"
+                  class="bg-gray-500 text-white px-4 py-2 rounded">Fechar</button>
+        </div>
+
+        <!-- resultados -->
+        <div class="overflow-auto">
+          <table class="w-full">
+            <thead class="bg-gray-100 dark:bg-gray-700">
+              <tr>
+                <th class="p-2 text-left">Fornecedor</th>
+                <th class="p-2 text-left">Categoria</th>
+                <th class="p-2 text-left">Valor</th>
+                <th class="p-2 text-left">Vencimento</th>
+                <th class="p-2 text-left">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="bill in filteredReportBills()" :key="bill.id">
+                <tr class="border-b"
+                    :class="{'bg-red-100 dark:bg-red-900': isOverdue(bill)}">
+                  <td class="p-2" x-text="bill.provider"></td>
+                  <td class="p-2" x-text="categoryName(bill.categoryId)"></td>
+                  <td class="p-2" x-text="formatCurrency(bill.amount)"></td>
+                  <td class="p-2" x-text="bill.dueDate"></td>
+                  <td class="p-2">
+                    <span x-show="bill.status==='paga'" class="text-success font-bold">Paga</span>
+                    <span x-show="!bill.status==='paga' && isOverdue(bill)" class="text-warning font-bold">Atrasada</span>
+                    <span x-show="bill.status==='pendente' && !isOverdue(bill)" class="text-yellow-500 font-bold">Pendente</span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+            <tfoot class="bg-gray-200 dark:bg-gray-700">
+              <tr>
+                <td colspan="2" class="p-2 font-bold text-right">Totais:</td>
+                <td class="p-2 font-bold" x-text="formatCurrency(reportTotalAmount())"></td>
+                <td colspan="2"></td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <div class="mt-4 text-sm text-gray-600 dark:text-gray-300"
+               x-show="filteredReportBills().length===0">
+            Nenhum registro encontrado com os filtros selecionados.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div> <!-- fim do <div x-show="user"> -->
+
+  <!-- AUTENTICAÇÃO (fora do Alpine) -->
+  <script>
+    async function signup() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const { error } = await supabaseClient.auth.signUp({ email, password });
+      if (error) {
+        alert(error.message);
+        return;
+      }
+      alert('Conta criada com sucesso!');
+    }
+
+    async function login() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) {
+        alert(error.message);
+        return;
+      }
+      location.reload();
+    }
+  </script>
+
+  <!-- ALPINE APP -->
+  <script>
+    function financeApp() {
+      return {
+        // ---------- STATE ----------
+        user: null,
+        bills: [],
+        categories: [],
+        providers: [],
+        notifications: [],
+
+        // filtros da lista principal
+        search: '',
+        filterStatus: '',
+        showPayPanel: true,
+        showBillModal: false,
+        showCategoryModal: false,
+        showProviderModal: false,
+        showCategoryFormModal: false,
+        showProviderFormModal: false,
+        showReportModal: false,
+
+        // filtros do relatório
+        reportStartDate: '',
+        reportEndDate: '',
+        reportCategoryId: '',
+        reportProviderId: '',
+        reportStatus: '',
+
+        // modos de edição
+        editMode: false,
+        editCategoryMode: false,
+        editProviderMode: false,
+
+        // formulários
+        form: {
+          id: '',
+          provider: '',
+          categoryId: '',
+          amount: '',
+          dueDate: '',
+          status: 'pendente',
+          paidAmount: '',
+          paidDate: '',
+          installments: 1,
+          installment: 1,
+          installmentTotal: 1
+        },
+
+        categoryForm: {
+          id: '',
+          name: '',
+          color: '#3498db'
+        },
+
+        providerForm: {
+          id: '',
+          name: ''
+        },
+
+        // ---------- INICIALIZAÇÃO ----------
+        async init() {
+          const { data: { user } } = await supabaseClient.auth.getUser();
+          this.user = user;
+
+          if (user) {
+            await Promise.all([
+              this.loadBills(),
+              this.loadCategories(),
+              this.loadProviders()
+            ]);
+          }
+        },
+
+        // ---------- NOTIFICAÇÕES ----------
+        showToast(message, type = 'success') {
+          const id = crypto.randomUUID();
+          this.notifications.push({ id, message, type });
+          setTimeout(() => {
+            this.notifications = this.notifications.filter(n => n.id !== id);
+          }, 3000);
+        },
+
+        // ---------- AUTENTICAÇÃO ----------
+        async logout() {
+          await supabaseClient.auth.signOut();
+          location.reload();
+        },
+
+        // ---------- CARREGAMENTOS ----------
+        async loadBills() {
+          const { data: { user } } = await supabaseClient.auth.getUser();
+          const { data, error } = await supabaseClient
+            .from('bills')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('dueDate', { ascending: true });
+
+          if (error) {
+            console.error(error);
+            this.showToast('Erro ao carregar contas', 'error');
+            return;
+          }
+          this.bills = data || [];
+        },
+
+        async loadCategories() {
+          const { data: { user } } = await supabaseClient.auth.getUser();
+          const { data, error } = await supabaseClient
+            .from('categories')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('name', { ascending: true });
+
+          if (error) {
+            console.error(error);
+            this.showToast('Erro ao carregar categorias', 'error');
+            return;
+          }
+          this.categories = data || [];
+        },
+
+        async loadProviders() {
+          const { data: { user } } = await supabaseClient.auth.getUser();
+          const { data, error } = await supabaseClient
+            .from('providers')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('name', { ascending: true });
+
+          if (error) {
+            console.error(error);
+            this.showToast('Erro ao carregar fornecedores', 'error');
+            return;
+          }
+          this.providers = data || [];
+        },
+
+        // ---------- RESTAURAÇÃO ----------
+        resetAll() {
+          this.showBillModal = false;
+          this.showCategoryModal = false;
+          this.showProviderModal = false;
+          this.showCategoryFormModal = false;
+          this.showProviderFormModal = false;
+          this.loadBills();
+          this.loadCategories();
+          this.loadProviders();
+          this.showToast('Dados recarregados', 'success');
+        },
+
+        // ---------- TOGGLES ----------
+        togglePayPanel() {
+          this.showPayPanel = !this.showPayPanel;
+        },
+
+        toggleDark() {
+          document.documentElement.classList.toggle('dark');
+        },
+
+        // ---------- LISTAS ----------
+        billsToPay() {
+          return this.bills.filter(b => b.status !== 'paga');
+        },
+
+        isOverdue(bill) {
+          if (bill.status === 'paga') return false;
+          const hoje = new Date();
+          hoje.setHours(0, 0, 0, 0);
+          const venc = new Date(bill.dueDate + 'T00:00:00');
+          venc.setHours(0, 0, 0, 0);
+          return venc < hoje;
+        },
+
+        filteredBills() {
+          return this.bills.filter(b => {
+            const matchSearch = !this.search ||
+              b.provider.toLowerCase().includes(this.search.toLowerCase());
+
+            let status = 'pendente';
+            if (b.status === 'paga') status = 'paga';
+            else if (this.isOverdue(b)) status = 'atrasada';
+
+            const matchStatus = !this.filterStatus || status === this.filterStatus;
+
+            return matchSearch && matchStatus;
+          });
+        },
+
+        // ---------- RELATÓRIO ----------
+        filteredReportBills() {
+          return this.bills.filter(b => {
+            // fornecedor
+            if (this.reportProviderId) {
+              const prov = this.providers.find(p => p.id === Number(this.reportProviderId));
+              if (!prov || b.provider !== prov.name) return false;
+            }
+
+            // categoria
+            if (this.reportCategoryId && String(b.categoryId) !== String(this.reportCategoryId)) {
+              return false;
+            }
+
+            // status
+            if (this.reportStatus) {
+              let st = 'pendente';
+              if (b.status === 'paga') st = 'paga';
+              else if (this.isOverdue(b)) st = 'atrasada';
+              if (st !== this.reportStatus) return false;
+            }
+
+            // período
+            if (this.reportStartDate) {
+              if (new Date(b.dueDate) < new Date(this.reportStartDate)) return false;
+            }
+            if (this.reportEndDate) {
+              if (new Date(b.dueDate) > new Date(this.reportEndDate)) return false;
+            }
+
+            return true;
+          });
+        },
+
+        reportTotalAmount() {
+          return this.filteredReportBills().reduce((s, b) => s + Number(b.amount), 0);
+        },
+
+        exportCSV() {
+          const rows = this.filteredReportBills().map(b => ({
+            Fornecedor: b.provider,
+            Categoria: this.categoryName(b.categoryId),
+            Valor: b.amount,
+            Vencimento: b.dueDate,
+            Status: b.status
+          }));
+          const header = ['Fornecedor', 'Categoria', 'Valor', 'Vencimento', 'Status'];
+          const csv = [
+            header.join(','),
+            ...rows.map(r => header.map(h => `"${r[h]}"`).join(','))
+          ].join('\n');
+
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          const today = new Date().toISOString().split('T')[0];
+          link.download = `relatorio_financas_${today}.csv`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        },
+
+        // ---------- CONTADORES ----------
+        pendingCount() {
+          return this.bills.filter(b => b.status === 'pendente' && !this.isOverdue(b)).length;
+        },
+
+        overdueCount() {
+          return this.bills.filter(b => this.isOverdue(b)).length;
+        },
+
+        totalPaidToday() {
+          const hoje = new Date().toISOString().split('T')[0];
+          return this.bills
+            .filter(b => b.status === 'paga' && b.paidDate === hoje)
+            .reduce((s, b) => s + Number(b.paidAmount || 0), 0);
+        },
+
+        totalAmount() {
+          return this.bills.reduce((s, b) => s + Number(b.amount), 0);
+        },
+
+        // ---------- FORMATAÇÃO ----------
+        formatCurrency(v) {
+          return Number(v || 0).toLocaleString('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+          });
+        },
+
+        categoryName(id) {
+          const cat = this.categories.find(c => String(c.id) === String(id));
+          return cat ? cat.name : '';
+        },
+
+        categoryColor(id) {
+          const cat = this.categories.find(c => String(c.id) === String(id));
+          return cat ? cat.color : '#999';
+        },
+
+        // ---------- CRUD CONTAS ----------
+        async saveBill() {
+          const { data: { user } } = await supabaseClient.auth.getUser();
+
+          if (!this.form.provider) {
+            this.showToast('Selecione um fornecedor', 'error');
+            return;
+          }
+          if (!this.form.categoryId) {
+            this.showToast('Selecione uma categoria', 'error');
+            return;
+          }
+
+          try {
+            if (this.editMode) {
+              const updates = {
+                provider: this.form.provider,
+                categoryId: this.form.categoryId,
+                amount: Number(this.form.amount),
+                dueDate: this.form.dueDate
+              };
+              const { data, error } = await supabaseClient
+                .from('bills')
+                .update(updates)
+                .eq('id', this.form.id)
+                .select();
+
+              if (error) throw error;
+
+              if (data && data.length) {
+                const idx = this.bills.findIndex(b => b.id === this.form.id);
+                if (idx !== -1) this.bills.splice(idx, 1, data[0]);
+              }
+            } else {
+              const total = Number(this.form.installments || 1);
+              const base = new Date(this.form.dueDate + 'T00:00:00');
+              const rows = [];
+
+              for (let i = 1; i <= total; i++) {
+                const d = new Date(base);
+                d.setMonth(d.getMonth() + (i - 1));
+                const due = d.toISOString().split('T')[0];
+
+                rows.push({
+                  id: crypto.randomUUID(),
+                  provider: this.form.provider,
+                  categoryId: this.form.categoryId,
+                  amount: Number(this.form.amount),
+                  dueDate: due,
+                  status: 'pendente',
+                  paidAmount: null,
+                  paidDate: null,
+                  installment: i,
+                  installmentTotal: total,
+                  user_id: user.id
+                });
+              }
+
+              const { data, error } = await supabaseClient
+                .from('bills')
+                .insert(rows)
+                .select();
+
+              if (error) throw error;
+
+              if (data) this.bills = this.bills.concat(data);
+            }
+
+            this.showBillModal = false;
+            this.editMode = false;
+            this.resetForm();
+            this.showToast('Conta salva com sucesso', 'success');
+          } catch (err) {
+            console.error(err);
+            this.showToast('Erro ao salvar a conta: ' + (err.message || err), 'error');
+          }
+        },
+
+        async removeBill(id) {
+          const { error } = await supabaseClient
+            .from('bills')
+            .delete()
+            .eq('id', id);
+
+          if (error) {
+            this.showToast('Erro ao excluir a conta', 'error');
+            return;
+          }
+
+          this.bills = this.bills.filter(b => b.id !== id);
+          this.showToast('Conta excluída', 'success');
+        },
+
+        async payBill(bill) {
+          const valorPago = prompt('Informe o valor pago:', bill.amount);
+          if (valorPago === null) return;
+
+          const updates = {
+            status: 'paga',
+            paidAmount: Number(valorPago),
+            paidDate: new Date().toISOString().split('T')[0]
+          };
+
+          const { data, error } = await supabaseClient
+            .from('bills')
+            .update(updates)
+            .eq('id', bill.id)
+            .select();
+
+          if (error) {
+            this.showToast('Erro ao registrar pagamento', 'error');
+            return;
+          }
+
+          if (data && data.length) {
+            const idx = this.bills.findIndex(b => b.id === bill.id);
+            if (idx !== -1) this.bills.splice(idx, 1, data[0]);
+          }
+
+          this.showToast('Pagamento registrado', 'success');
+        },
+
+        editBill(bill) {
+          this.editMode = true;
+          this.form = { ...bill, installments: bill.installmentTotal };
+          this.showBillModal = true;
+        },
+
+        resetForm() {
+          this.form = {
+            id: '',
+            provider: '',
+            categoryId: '',
+            amount: '',
+            dueDate: '',
+            status: 'pendente',
+            paidAmount: '',
+            paidDate: '',
+            installments: 1,
+            installment: 1,
+            installmentTotal: 1
+          };
+        },
+
+        // ---------- CATEGORIAS ----------
+        openCategoryForm(cat = null) {
+          if (cat) {
+            this.editCategoryMode = true;
+            this.categoryForm = { ...cat };
+          } else {
+            this.editCategoryMode = false;
+            this.categoryForm = { id: '', name: '', color: '#3498db' };
+          }
+          this.showCategoryFormModal = true;
+        },
+
+        async saveCategory() {
+          const { data: { user } } = await supabaseClient.auth.getUser();
+
+          if (!this.categoryForm.name) {
+            this.showToast('O nome da categoria é obrigatório', 'error');
+            return;
+          }
+
+          if (this.editCategoryMode) {
+            const updates = {
+              name: this.categoryForm.name,
+              color: this.categoryForm.color
+            };
+            const { data, error } = await supabaseClient
+              .from('categories')
+              .update(updates)
+              .eq('id', this.categoryForm.id)
+              .select();
+
+            if (error) {
+              this.showToast(error.message, 'error');
+              return;
+            }
+
+            const idx = this.categories.findIndex(c => c.id === this.categoryForm.id);
+            if (idx !== -1) this.categories.splice(idx, 1, data[0]);
+            this.showToast('Categoria atualizada', 'success');
+          } else {
+            const newCat = {
+              name: this.categoryForm.name,
+              color: this.categoryForm.color,
+              user_id: user.id
+            };
+            const { data, error } = await supabaseClient
+              .from('categories')
+              .insert([newCat])
+              .select();
+
+            if (error) {
+              this.showToast(error.message, 'error');
+              return;
+            }
+
+            this.categories.push(data[0]);
+            this.showToast('Categoria criada', 'success');
+          }
+
+          this.showCategoryFormModal = false;
+          this.resetCategoryForm();
+        },
+
+        resetCategoryForm() {
+          this.categoryForm = { id: '', name: '', color: '#3498db' };
+        },
+
+        async deleteCategory(id) {
+          const emUso = this.bills.some(b => Number(b.categoryId) === Number(id));
+          if (emUso) {
+            this.showToast('Esta categoria está em uso e não pode ser excluída', 'error');
+            return;
+          }
+
+          const { error } = await supabaseClient
+            .from('categories')
+            .delete()
+            .eq('id', id);
+
+          if (error) {
+            this.showToast('Erro ao excluir categoria', 'error');
+            return;
+          }
+
+          this.categories = this.categories.filter(c => c.id !== id);
+          this.showToast('Categoria excluída', 'success');
+        },
+
+        // ---------- FORNECEDORES ----------
+        openProviderForm(p = null) {
+          if (p) {
+            this.editProviderMode = true;
+            this.providerForm = { ...p };
+          } else {
+            this.editProviderMode = false;
+            this.providerForm = { id: '', name: '' };
+          }
+          this.showProviderFormModal = true;
+        },
+
+        async saveProvider() {
+          const { data: { user } } = await supabaseClient.auth.getUser();
+
+          if (!this.providerForm.name) {
+            this.showToast('O nome do fornecedor é obrigatório', 'error');
+            return;
+          }
+
+          if (this.editProviderMode) {
+            const updates = { name: this.providerForm.name };
+            const { data, error } = await supabaseClient
+              .from('providers')
+              .update(updates)
+              .eq('id', this.providerForm.id)
+              .select();
+
+            if (error) {
+              this.showToast(error.message, 'error');
+              return;
+            }
+
+            const idx = this.providers.findIndex(p => p.id === this.providerForm.id);
+            if (idx !== -1) this.providers.splice(idx, 1, data[0]);
+            this.showToast('Fornecedor atualizado', 'success');
+          } else {
+            const newProvider = {
+              name: this.providerForm.name,
+              user_id: user.id
+            };
+            const { data, error } = await supabaseClient
+              .from('providers')
+              .insert([newProvider])
+              .select();
+
+            if (error) {
+              this.showToast(error.message, 'error');
+              return;
+            }
+
+            this.providers.push(data[0]);
+            this.showToast('Fornecedor criado', 'success');
+          }
+
+          this.showProviderFormModal = false;
+          this.resetProviderForm();
+        },
+
+        resetProviderForm() {
+          this.providerForm = { id: '', name: '' };
+        },
+
+        async deleteProvider(id) {
+          const nome = this.providers.find(p => p.id === id)?.name;
+          const emUso = this.bills.some(b => b.provider === nome);
+          if (emUso) {
+            this.showToast('Este fornecedor está em uso e não pode ser excluído', 'error');
+            return;
+          }
+
+          const { error } = await supabaseClient
+            .from('providers')
+            .delete()
+            .eq('id', id);
+
+          if (error) {
+            this.showToast('Erro ao excluir fornecedor', 'error');
+            return;
+          }
+
+          this.providers = this.providers.filter(p => p.id !== id);
+          this.showToast('Fornecedor excluído', 'success');
+        }
+      };
+    }
+  </script>
+
+</body>
+</html>
