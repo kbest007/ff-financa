@@ -97,7 +97,7 @@
                class="border rounded px-3 py-3 text-black">
         <input type="password" id="password" placeholder="Sua senha"
                class="border rounded px-3 py-3 text-black">
-   <div class="flex gap-2">
+        <div class="flex gap-2">
   <button onclick="signup()"
           class="bg-blue-500 text-white px-4 py-3 rounded w-full">
     Criar Conta
@@ -108,14 +108,12 @@
     Entrar
   </button>
 </div>
-
-<div class="mt-3 text-center">
-  <a href="/reset-password.html"
-     class="text-blue-600 hover:underline text-sm font-medium">
+<div class="mt-2">
+  <button onclick="forgotPassword()"
+          class="text-blue-600 hover:underline text-sm">
     Esqueci minha senha
-  </a>
-</div>
-      </div>
+  </button>
+</div>      </div>
     </div>
   </section>
   <div x-show="user && licenseExpired" x-cloak
@@ -127,11 +125,13 @@
         Seu trial de <strong>7 dias</strong> expirou.<br>
         Para continuar usando o <strong>FF Finanças</strong>, adquira uma licença.
       </p>
+
       <div class="bg-white/10 rounded-xl p-4 mb-6 text-sm text-gray-300 text-left space-y-1">
         <p>📧 <span x-text="user?.email"></span></p>
         <p>📅 Trial iniciado em: <span x-text="trialStartFormatted()"></span></p>
         <p>⏰ Trial expirou em: <span x-text="trialExpiredFormatted()"></span></p>
       </div>
+
       <div class="space-y-3">
         <a href="mailto:cbest07@gmail.com?subject=Licença FF Finanças"
            class="block w-full bg-secondary hover:bg-orange-500 text-white font-bold py-3 rounded-xl transition-colors">
@@ -142,12 +142,15 @@
           Sair da conta
         </button>
       </div>
+
       <p class="text-xs text-gray-500 mt-6">
         Já adquiriu? Aguarde a ativação pela equipe ou entre em contato.
       </p>
     </div>
   </div>
+
   <div x-show="user && !licenseExpired" x-cloak>
+
     <header class="bg-primary text-white p-4">
       <div class="flex flex-col lg:flex-row justify-between gap-3 items-center">
         <div class="flex items-center gap-3">
@@ -166,6 +169,7 @@
                   class="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded shadow flex items-center gap-1">
             👑 Painel Admin
           </button>
+
           <input type="text" placeholder="Buscar..."
                  class="px-3 py-2 rounded text-black"
                  x-model="search">
@@ -1191,6 +1195,22 @@
         }
       };
     }
+
+async function forgotPassword() {
+  const email = prompt("Digite o e-mail da sua conta:");
+
+  if (!email) return;
+
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: 'https://ff-financa.vercel.app/reset-password.html'
+  });
+
+  if (error) {
+    alert("Erro: " + error.message);
+  } else {
+    alert("Enviamos um link para redefinição de senha para o seu e-mail.");
+  }
+}
   </script>
 
 </body>
