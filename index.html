@@ -565,61 +565,75 @@
     </div>
 
     <div x-show="showReportModal" x-cloak
-         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4"
          @keydown.escape.window="showReportModal = false">
-      <div class="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-4xl"
+      <div class="bg-white dark:bg-gray-800 rounded w-full max-w-4xl flex flex-col"
+           style="max-height: 92vh;"
            @click.away="showReportModal = false"
            x-transition:enter="transition ease-out duration-200"
            x-transition:enter-start="opacity-0 scale-95"
            x-transition:enter-end="opacity-100 scale-100">
-        <div class="flex justify-between items-center mb-4">
+
+        <!-- Cabeçalho fixo -->
+        <div class="flex justify-between items-center p-4 border-b dark:border-gray-700 flex-shrink-0">
           <h2 class="text-2xl font-bold">Relatórios</h2>
-          <button @click="showReportModal = false" class="text-gray-600 hover:text-gray-800">&times;</button>
+          <button @click="showReportModal = false" class="text-gray-600 hover:text-gray-800 dark:text-gray-300 text-2xl font-bold leading-none">&times;</button>
         </div>
-        <div class="grid md:grid-cols-4 gap-4 mb-4">
-          <div>
-            <label class="block mb-1">Data início</label>
-            <input type="date" class="w-full border rounded px-3 py-2 text-black" x-model="reportStartDate">
+
+        <!-- Filtros fixos (não rola junto com a tabela) -->
+        <div class="p-4 border-b dark:border-gray-700 flex-shrink-0 bg-gray-50 dark:bg-gray-900">
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div>
+              <label class="block mb-1 text-sm font-semibold">Data início</label>
+              <input type="date" class="w-full border rounded px-2 py-2 text-black text-sm" x-model="reportStartDate">
+            </div>
+            <div>
+              <label class="block mb-1 text-sm font-semibold">Data fim</label>
+              <input type="date" class="w-full border rounded px-2 py-2 text-black text-sm" x-model="reportEndDate">
+            </div>
+            <div>
+              <label class="block mb-1 text-sm font-semibold">Categoria</label>
+              <select class="w-full border rounded px-2 py-2 text-black text-sm" x-model="reportCategoryId">
+                <option value="">Todas</option>
+                <template x-for="cat in categories" :key="cat.id">
+                  <option :value="cat.id" x-text="cat.name"></option>
+                </template>
+              </select>
+            </div>
+            <div>
+              <label class="block mb-1 text-sm font-semibold">Fornecedor</label>
+              <select class="w-full border rounded px-2 py-2 text-black text-sm" x-model="reportProviderId">
+                <option value="">Todos</option>
+                <template x-for="p in providers" :key="p.id">
+                  <option :value="p.id" x-text="p.name"></option>
+                </template>
+              </select>
+            </div>
+            <div>
+              <label class="block mb-1 text-sm font-semibold">Status</label>
+              <select class="w-full border rounded px-2 py-2 text-black text-sm" x-model="reportStatus">
+                <option value="">Todos</option>
+                <option value="pendente">Pendente</option>
+                <option value="paga">Paga</option>
+                <option value="atrasada">Atrasada</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label class="block mb-1">Data fim</label>
-            <input type="date" class="w-full border rounded px-3 py-2 text-black" x-model="reportEndDate">
-          </div>
-          <div>
-            <label class="block mb-1">Categoria</label>
-            <select class="w-full border rounded px-3 py-2 text-black" x-model="reportCategoryId">
-              <option value="">Todas</option>
-              <template x-for="cat in categories" :key="cat.id">
-                <option :value="cat.id" x-text="cat.name"></option>
-              </template>
-            </select>
-          </div>
-          <div>
-            <label class="block mb-1">Fornecedor</label>
-            <select class="w-full border rounded px-3 py-2 text-black" x-model="reportProviderId">
-              <option value="">Todos</option>
-              <template x-for="p in providers" :key="p.id">
-                <option :value="p.id" x-text="p.name"></option>
-              </template>
-            </select>
-          </div>
-          <div class="md:col-span-4">
-            <label class="block mb-1">Status</label>
-            <select class="w-full border rounded px-3 py-2 text-black" x-model="reportStatus">
-              <option value="">Todos</option>
-              <option value="pendente">Pendente</option>
-              <option value="paga">Paga</option>
-              <option value="atrasada">Atrasada</option>
-            </select>
+          <div class="flex justify-between items-center mt-3">
+            <span class="text-sm text-gray-500 dark:text-gray-400">
+              <span x-text="filteredReportBills().length"></span> registro(s) encontrado(s)
+            </span>
+            <div class="flex gap-2">
+              <button @click="exportCSV()" class="bg-primary text-white px-4 py-2 rounded text-sm">Exportar CSV</button>
+              <button @click="showReportModal = false" class="bg-gray-500 text-white px-4 py-2 rounded text-sm">Fechar</button>
+            </div>
           </div>
         </div>
-        <div class="flex justify-end gap-2 mb-4">
-          <button @click="exportCSV()" class="bg-primary text-white px-4 py-2 rounded">Exportar CSV</button>
-          <button @click="showReportModal = false" class="bg-gray-500 text-white px-4 py-2 rounded">Fechar</button>
-        </div>
-        <div class="overflow-auto">
+
+        <!-- Tabela com scroll independente -->
+        <div class="overflow-auto flex-1 p-4">
           <table class="w-full">
-            <thead class="bg-gray-100 dark:bg-gray-700">
+            <thead class="bg-gray-100 dark:bg-gray-700 sticky top-0">
               <tr>
                 <th class="p-2 text-left">Fornecedor</th>
                 <th class="p-2 text-left">Categoria</th>
@@ -643,7 +657,7 @@
                 </tr>
               </template>
             </tbody>
-            <tfoot class="bg-gray-200 dark:bg-gray-700">
+            <tfoot class="bg-gray-200 dark:bg-gray-700 sticky bottom-0">
               <tr>
                 <td colspan="2" class="p-2 font-bold text-right">Totais:</td>
                 <td class="p-2 font-bold" x-text="formatCurrency(reportTotalAmount())"></td>
@@ -651,11 +665,12 @@
               </tr>
             </tfoot>
           </table>
-          <div class="mt-4 text-sm text-gray-600 dark:text-gray-300"
+          <div class="mt-4 text-sm text-gray-600 dark:text-gray-300 text-center py-6"
                x-show="filteredReportBills().length===0">
             Nenhum registro encontrado com os filtros selecionados.
           </div>
         </div>
+
       </div>
     </div>
 
