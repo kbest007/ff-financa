@@ -181,6 +181,19 @@
             <option value="atrasada">Atrasadas</option>
           </select>
 
+          <input type="month"
+                 class="px-3 py-2 rounded text-black"
+                 x-model="filterMonth"
+                 x-show="!showAllMonths"
+                 :title="'Filtrando: ' + filterMonth">
+
+          <button @click="showAllMonths = !showAllMonths; if(!showAllMonths) filterMonth = new Date().toISOString().slice(0,7)"
+                  class="px-3 py-2 rounded text-sm font-semibold"
+                  :class="showAllMonths ? 'bg-accent text-black' : 'bg-gray-500 text-white'"
+                  :title="showAllMonths ? 'Mostrando todos os meses' : 'Mostrando apenas o mês selecionado'">
+            <span x-text="showAllMonths ? '📋 Todos os meses' : '📅 Só este mês'"></span>
+          </button>
+
           <button @click="togglePayPanel()"
                   class="bg-success px-4 py-2 rounded">
             A Pagar
@@ -801,6 +814,8 @@
         // filtros e telas
         search: '',
         filterStatus: '',
+        filterMonth: new Date().toISOString().slice(0, 7),
+        showAllMonths: false,
         showPayPanel: true,
         showBillModal: false,
         showCategoryModal: false,
@@ -1037,7 +1052,16 @@
             if (b.status === 'paga') status = 'paga';
             else if (this.isOverdue(b)) status = 'atrasada';
             const matchStatus = !this.filterStatus || status === this.filterStatus;
-            return matchSearch && matchStatus;
+
+            // Filtro de mês: mostra contas do mês selecionado + atrasadas (sempre visíveis)
+            let matchMonth = true;
+            if (!this.showAllMonths) {
+              const billMonth = b.dueDate ? b.dueDate.slice(0, 7) : '';
+              const isOverdue = this.isOverdue(b);
+              matchMonth = billMonth === this.filterMonth || isOverdue;
+            }
+
+            return matchSearch && matchStatus && matchMonth;
           });
         },
 
