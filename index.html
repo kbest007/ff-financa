@@ -291,20 +291,20 @@
 
       <section class="grid md:grid-cols-4 gap-4 mb-6">
         <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 class="font-bold">Pendentes</h2>
+          <h2 class="font-bold text-sm">Pendentes <span x-show="!showAllMonths" class="text-gray-400 font-normal text-xs" x-text="'(' + filterMonth + ')'"></span></h2>
           <p class="text-3xl" x-text="pendingCount()"></p>
         </div>
         <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 class="font-bold text-warning">Atrasadas</h2>
+          <h2 class="font-bold text-warning text-sm">Atrasadas <span class="text-gray-400 font-normal text-xs">(total)</span></h2>
           <p class="text-3xl text-warning" x-text="overdueCount()"></p>
         </div>
         <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 class="font-bold text-success">Pago Hoje</h2>
+          <h2 class="font-bold text-success text-sm">Pago Hoje</h2>
           <p class="text-2xl text-success font-bold"
              x-text="formatCurrency(totalPaidToday())"></p>
         </div>
         <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 class="font-bold">Total Geral</h2>
+          <h2 class="font-bold text-sm">A Pagar <span x-show="!showAllMonths" class="text-gray-400 font-normal text-xs" x-text="'(' + filterMonth + ')'"></span></h2>
           <p class="text-2xl" x-text="formatCurrency(totalAmount())"></p>
         </div>
       </section>
@@ -1036,7 +1036,15 @@
         toggleDark() { document.documentElement.classList.toggle('dark'); },
 
         // ---------- LISTAS ----------
-        billsToPay() { return this.bills.filter(b => b.status !== 'paga'); },
+        // Painel "A Pagar": só pendentes/atrasadas do mês selecionado + todas as atrasadas
+        billsToPay() {
+          return this.bills.filter(b => {
+            if (b.status === 'paga') return false;
+            if (this.showAllMonths) return true;
+            const billMonth = b.dueDate ? b.dueDate.slice(0, 7) : '';
+            return billMonth === this.filterMonth || this.isOverdue(b);
+          });
+        },
 
         isOverdue(bill) {
           if (bill.status === 'paga') return false;
@@ -1103,14 +1111,27 @@
           document.body.appendChild(link); link.click(); document.body.removeChild(link);
         },
 
-        pendingCount() { return this.bills.filter(b => b.status === 'pendente' && !this.isOverdue(b)).length; },
+        // Cards de resumo: refletem o mês visível
+        billsInView() {
+          return this.bills.filter(b => {
+            if (this.showAllMonths) return true;
+            const billMonth = b.dueDate ? b.dueDate.slice(0, 7) : '';
+            return billMonth === this.filterMonth || this.isOverdue(b);
+          });
+        },
+
+        pendingCount() {
+          return this.billsInView().filter(b => b.status === 'pendente' && !this.isOverdue(b)).length;
+        },
         overdueCount() { return this.bills.filter(b => this.isOverdue(b)).length; },
         totalPaidToday() {
           const hoje = new Date().toISOString().split('T')[0];
           return this.bills.filter(b => b.status === 'paga' && b.paidDate === hoje)
                            .reduce((s, b) => s + Number(b.paidAmount || 0), 0);
         },
-        totalAmount() { return this.bills.reduce((s, b) => s + Number(b.amount), 0); },
+        totalAmount() {
+          return this.billsInView().filter(b => b.status !== 'paga').reduce((s, b) => s + Number(b.amount), 0);
+        },
 
         formatCurrency(v) {
           return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
