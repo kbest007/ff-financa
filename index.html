@@ -814,8 +814,8 @@
     </td>
     <td class="p-3 text-center">
       <span class="text-xs font-bold px-2 py-1 rounded-full"
-            :class="checkUserPaidThisMonth(lic.user_id) ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'"
-            x-text="checkUserPaidThisMonth(lic.user_id) ? '✅ Sim' : '⏳ Não'">
+            :class="checkUserPaidThisMonth(lic.user_id) ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+            x-text="checkUserPaidThisMonth(lic.user_id) ? '✅ Em Dia' : '⚠️ Atrasado'">
       </span>
     </td>
     <td class="p-3 text-center space-x-2">
@@ -1037,14 +1037,18 @@
         },
 
         checkUserPaidThisMonth(userId) {
-          const now = new Date();
-          const currentMonth = now.toISOString().substring(0, 7);
-          return this.bills.some(b => 
-            b.user_id === userId && 
-            b.status === 'paga' && 
-            b.paidDate && 
-            b.paidDate.substring(0, 7) === currentMonth
-          );
+          // Verificar se o usuário está EM DIA
+          // Em dia = nenhuma conta atrasada não paga
+          const hasOverdueBills = this.bills.some(b => {
+            if (b.user_id !== userId) return false;
+            if (b.status === 'paga') return false; // já pagou
+            const hoje = new Date(); 
+            hoje.setHours(0,0,0,0);
+            const venc = new Date(b.dueDate + 'T00:00:00'); 
+            venc.setHours(0,0,0,0);
+            return venc < hoje; // tem conta atrasada
+          });
+          return !hasOverdueBills; // em dia = sem contas atrasadas
         },
 
         async toggleLicenseStatus(lic) {
