@@ -173,6 +173,9 @@
           <input type="text" placeholder="Buscar..."
                  class="px-3 py-2 rounded text-black"
                  x-model="search">
+          <input type="month" 
+                 class="px-3 py-2 rounded text-black"
+                 x-model="filterMonth">
           <select class="px-3 py-2 rounded text-black"
                   x-model="filterStatus">
             <option value="">Todos</option>
@@ -803,6 +806,7 @@
         // filtros e telas
         search: '',
         filterStatus: '',
+        filterMonth: new Date().toISOString().substring(0, 7),
         showPayPanel: true,
         showBillModal: false,
         showCategoryModal: false,
@@ -1044,7 +1048,9 @@
             if (b.status === 'paga') status = 'paga';
             else if (this.isOverdue(b)) status = 'atrasada';
             const matchStatus = !this.filterStatus || status === this.filterStatus;
-            return matchSearch && matchStatus;
+            const billMonth = b.dueDate.substring(0, 7);
+            const matchMonth = !this.filterMonth || billMonth === this.filterMonth;
+            return matchSearch && matchStatus && matchMonth;
           });
         },
 
