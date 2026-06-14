@@ -15,18 +15,17 @@ const transporter = nodemailer.createTransport({
 });
 
 export default async function handler(req, res) {
-  // Garante que o timezone local seja considerado (UTC-3)
   const hoje = new Date();
   hoje.setHours(hoje.getHours() - 3);
   const dataFormatada = hoje.toISOString().split('T')[0];
 
   try {
-    // 1. Busca na tabela 'bills' as contas que vencem hoje e não estão pagas
+    // 1. Busca na tabela 'bills' as contas pendentes que vencem hoje
     const { data: bills, error } = await supabase
       .from('bills')
       .select('*')
-      .eq('data_vencimento', dataFormatada)
-      .eq('pago', false);
+      .eq('dueDate', dataFormatada)
+      .eq('status', 'PENDING');
 
     if (error) throw error;
 
@@ -37,10 +36,10 @@ export default async function handler(req, res) {
     // 2. Monta a lista de contas para o e-mail
     let listaContasHtml = '';
     bills.forEach(bill => {
-      listaContasHtml += `<li><strong>${bill.descricao}</strong>: R$ ${bill.valor.toFixed(2)}</li>`;
+      listaContasHtml += `<li><strong>${bill.provider}</strong>: R$ ${bill.amount.toFixed(2)}</li>`;
     });
 
-    // 3. Configura e envia o e-mail informativo
+    // 3. Configura e envia o e-mail
     const mailOptions = {
       from: process.env.GMAIL_USER,
       to: process.env.GMAIL_USER, 
@@ -48,20 +47,13 @@ export default async function handler(req, res) {
       html: `
         <div style="font-family: sans-serif; padding: 20px; color: #333;">
           <h2>Bom dia!</h2>
-          <p>Este é um lembrete automático de que existem contas vencendo hoje (<strong>${dataFormatada.split('-').reverse().join('/')}</strong>):</p>
-          <ul style="font-size: 16px; line-height: 1.6;">
-            ${listaContasHtml}
-          </ul>
-          <p>Não se esqueça de efetuar o pagamento e dar a baixa no aplicativo!</p>
-          <br>
-          <hr style="border: 0; border-top: 1px solid #eee;">
-          <small style="color: #999;">Robô de Notificações FF Finanças - Vercel Cron Jobs</small>
+          <p>Lembrete de contas que vencem hoje (<strong>${dataFormatada.split('-').reverse().join('/')}</strong>):</p>
+          <ul>${listaContasHtml}</ul>
         </div>
       `,
     };
 
     await transporter.sendMail(mailOptions);
-
     return res.status(200).json({ success: true, message: 'E-mail de alerta enviado!' });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
