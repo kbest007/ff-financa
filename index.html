@@ -811,10 +811,15 @@
     async function signup() {
       const email = document.getElementById('email').value;
       const password = document.getElementById('password').value;
+
+      if (!email || !password) {
+        alert('Preencha o e-mail e a senha para criar sua conta.');
+        return;
+      }
+
       const { data, error } = await supabaseClient.auth.signUp({ email, password });
       if (error) { alert(error.message); return; }
 
-      // CORREÇÃO AQUI: Agora salvando o email corretamente no momento do cadastro!
       if (data?.user) {
         const trialStart = new Date().toISOString();
         await supabaseClient.from('user_licenses').insert([{
@@ -823,9 +828,14 @@
           trial_start: trialStart,
           license_active: false
         }]);
-      }
 
-      alert('Conta criada! Você tem 7 dias de avaliação gratuita.');
+        if (data.session) {
+          alert('Conta criada! Você tem 7 dias de avaliação gratuita.\nSeus dados começam zerados — adicione suas contas, categorias e fornecedores.');
+          location.reload();
+        } else {
+          alert('Conta criada! Verifique seu e-mail para confirmar o cadastro e depois faça login.');
+        }
+      }
     }
 
     async function login() {
