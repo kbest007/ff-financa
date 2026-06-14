@@ -1021,16 +1021,22 @@
 
         async toggleLicenseStatus(lic) {
           const nextState = !lic.license_active;
-          const { error } = await supabaseClient
+          const { data, error } = await supabaseClient
             .from('user_licenses')
             .update({ license_active: nextState })
-            .eq('id', lic.id);
+            .eq('id', lic.id)
+            .select();
 
           if (error) {
-            this.showToast('Erro ao atualizar status', 'error');
-          } else {
-            lic.license_active = nextState;
+            console.error('Erro ao atualizar:', error);
+            this.showToast('Erro ao atualizar status: ' + (error.message || error), 'error');
+          } else if (data && data.length > 0) {
+            lic.license_active = data[0].license_active;
             this.showToast('Licença modificada com sucesso!', 'success');
+            // Recarregar a lista para sincronizar
+            await this.openAdminPanel();
+          } else {
+            this.showToast('Erro ao atualizar status', 'error');
           }
         },
 
