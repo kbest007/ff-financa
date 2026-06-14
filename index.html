@@ -1064,9 +1064,7 @@
             this.showToast('Erro ao atualizar status: ' + (error.message || error), 'error');
           } else if (data && data.length > 0) {
             lic.license_active = data[0].license_active;
-            this.showToast('Licença modificada com sucesso!', 'success');
-            // Recarregar a lista para sincronizar
-            await this.openAdminPanel();
+            this.showToast('Licença ' + (nextState ? 'ativada' : 'desativada') + ' com sucesso!', 'success');
           } else {
             this.showToast('Erro ao atualizar status', 'error');
           }
@@ -1274,10 +1272,60 @@
           if (!this.form.categoryId) { this.showToast('Selecione uma categoria', 'error'); return; }
           try {
             if (this.editMode) {
-              const updates = { provider: this.form.provider, categoryId: this.form.categoryId, amount: Number(this.form.amount), dueDate: this.form.dueDate };
-              const { data, error } = await supabaseClient.from('bills').update(updates).eq('id', this.form.id).select();
-              if (error) throw error;
-              if (data?.length) { const idx = this.bills.findIndex(b => b.id === this.form.id); if (idx !== -1) this.bills.splice(idx, 1, data[0]); }
+              // Se é uma parcela (installmentTotal > 1), precisa recalcular TODAS as parcelas
+              if (this.form.installmentTotal > 1) {
+                // Deletar todas as parcelas antigas desse grupo
+                const oldBills = this.bills.filter(b => 
+                  b.provider === this.form.provider && 
+                  b.installmentTotal === this.form.installmentTotal &&
+                  b.dueDate.substring(0, 7) !== this.form.dueDate.substring(0, 7) // diferentes
+                );
+                
+                for (const oldBill of oldBills) {
+                  await supabaseClient.from('bills').delete().eq('id', oldBill.id);
+                }
+                
+                // Criar novas parcelas com a data atualizada
+                const total = Number(this.form.installmentTotal || 1);
+                const base = new Date(this.form.dueDate + 'T00:00:00');
+                const rows = [];
+                for (let i = 1; i <= total; i++) {
+                  const d = new Date(base);
+                  const currentMonth = d.getMonth();
+                  const currentYear = d.getFullYear();
+                  const currentDay = d.getDate();
+                  const newMonth = currentMonth + (i - 1);
+                  const newYear = currentYear + Math.floor(newMonth / 12);
+                  const finalMonth = newMonth % 12;
+                  d.setFullYear(newYear);
+                  d.setMonth(finalMonth);
+                  const lastDayOfMonth = new Date(newYear, finalMonth + 1, 0).getDate();
+                  const finalDay = Math.min(currentDay, lastDayOfMonth);
+                  d.setDate(finalDay);
+                  rows.push({ id: crypto.randomUUID(), provider: this.form.provider, categoryId: this.form.categoryId, amount: Number(this.form.amount), dueDate: d.toISOString().split('T')[0], status: 'pendente', paidAmount: null, paidDate: null, installment: i, installmentTotal: total, user_id: user.id });
+                }
+                const { data, error } = await supabaseClient.from('bills').insert(rows).select();
+                if (error) throw error;
+                
+                // Remover as contas antigas da lista local
+                this.bills = this.bills.filter(b => !oldBills.find(old => old.id === b.id));
+                // Adicionar as novas
+                if (data) this.bills = this.bills.concat(data);
+                this.showBillModal = false;
+                this.editMode = false;
+                this.resetForm();
+                this.showToast('Parcelas recalculadas com sucesso!', 'success');
+              } else {
+                // Se não é parcelada, apenas atualiza
+                const updates = { provider: this.form.provider, categoryId: this.form.categoryId, amount: Number(this.form.amount), dueDate: this.form.dueDate };
+                const { data, error } = await supabaseClient.from('bills').update(updates).eq('id', this.form.id).select();
+                if (error) throw error;
+                if (data?.length) { const idx = this.bills.findIndex(b => b.id === this.form.id); if (idx !== -1) this.bills.splice(idx, 1, data[0]); }
+                this.showBillModal = false;
+                this.editMode = false;
+                this.resetForm();
+                this.showToast('Conta salva com sucesso', 'success');
+              }
             } else {
               const total = Number(this.form.installments || 1);
               const base = new Date(this.form.dueDate + 'T00:00:00');
@@ -1300,9 +1348,9 @@
               const { data, error } = await supabaseClient.from('bills').insert(rows).select();
               if (error) throw error;
               if (data) this.bills = this.bills.concat(data);
+              this.showBillModal = false; this.editMode = false; this.resetForm();
+              this.showToast('Conta salva com sucesso', 'success');
             }
-            this.showBillModal = false; this.editMode = false; this.resetForm();
-            this.showToast('Conta salva com sucesso', 'success');
           } catch (err) {
             this.showToast('Erro ao salvar a conta: ' + (err.message || err), 'error');
           }
