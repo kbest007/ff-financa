@@ -1052,21 +1052,24 @@
         },
 
         async toggleLicenseStatus(lic) {
-          const nextState = !lic.license_active;
-          const { data, error } = await supabaseClient
-            .from('user_licenses')
-            .update({ license_active: nextState })
-            .eq('id', lic.id)
-            .select();
+          try {
+            const nextState = !lic.license_active;
+            const { error } = await supabaseClient
+              .from('user_licenses')
+              .update({ license_active: nextState })
+              .eq('id', lic.id);
 
-          if (error) {
-            console.error('Erro ao atualizar:', error);
-            this.showToast('Erro ao atualizar status: ' + (error.message || error), 'error');
-          } else if (data && data.length > 0) {
-            lic.license_active = data[0].license_active;
-            this.showToast('Licença ' + (nextState ? 'ativada' : 'desativada') + ' com sucesso!', 'success');
-          } else {
-            this.showToast('Erro ao atualizar status', 'error');
+            if (error) {
+              console.error('Erro Supabase:', error);
+              this.showToast('Erro ao atualizar: ' + (error.message || JSON.stringify(error)), 'error');
+            } else {
+              // Se não teve erro, atualiza localmente
+              lic.license_active = nextState;
+              this.showToast('Licença ' + (nextState ? 'ativada' : 'desativada') + ' com sucesso!', 'success');
+            }
+          } catch (err) {
+            console.error('Erro na função:', err);
+            this.showToast('Erro: ' + err.message, 'error');
           }
         },
 
