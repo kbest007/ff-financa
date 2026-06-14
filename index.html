@@ -123,7 +123,7 @@
       <h1 class="text-3xl font-bold mb-2">Período de Avaliação Encerrado</h1>
       <p class="text-gray-300 mb-6">
         Seu trial de <strong>7 dias</strong> expirou.<br>
-        Para continuar usando o <strong>FF Finanças</strong>, adquira uma licença.
+        Para continuing usando o <strong>FF Finanças</strong>, adquira uma licença.
       </p>
 
       <div class="bg-white/10 rounded-xl p-4 mb-6 text-sm text-gray-300 text-left space-y-1">
@@ -1054,17 +1054,42 @@
         async toggleLicenseStatus(lic) {
           try {
             const nextState = !lic.license_active;
+            let expirationDate = lic.expires_at || null;
+
+            // Se o admin estiver ATIVANDO a licença, abre o Prompt pedindo a data manual
+            if (nextState) {
+              const defaultDate = new Date();
+              defaultDate.setDate(defaultDate.getDate() + 30);
+              const suggestedDate = defaultDate.toISOString().split('T')[0];
+
+              const inputUser = prompt(
+                "Insira a data de vencimento da licença (Formato: AAAA-MM-DD):", 
+                suggestedDate
+              );
+
+              // Se clicar em Cancelar, aborta e não faz alteração nenhuma
+              if (inputUser === null) return;
+              expirationDate = inputUser;
+            } else {
+              // Se estiver desativando a licença, limpa a data
+              expirationDate = null;
+            }
+
             const { error } = await supabaseClient
               .from('user_licenses')
-              .update({ license_active: nextState })
+              .update({ 
+                license_active: nextState,
+                expires_at: expirationDate
+              })
               .eq('id', lic.id);
 
             if (error) {
               console.error('Erro Supabase:', error);
               this.showToast('Erro ao atualizar: ' + (error.message || JSON.stringify(error)), 'error');
             } else {
-              // Se não teve erro, atualiza localmente
+              // Se atualizou com sucesso no banco, reflete localmente no painel aberto
               lic.license_active = nextState;
+              lic.expires_at = expirationDate;
               this.showToast('Licença ' + (nextState ? 'ativada' : 'desativada') + ' com sucesso!', 'success');
             }
           } catch (err) {
