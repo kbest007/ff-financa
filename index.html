@@ -272,13 +272,13 @@
                   :class="{'bg-red-50 dark:bg-red-950': isOverdue(bill)}">
                 <td class="px-4 py-2 font-medium" x-text="bill.provider"></td>
                 <td class="px-4 py-2 text-gray-500">
-                  <span x-show="bill.installmentTotal > 1">
-                    <span x-text="bill.installment"></span>/<span x-text="bill.installmentTotal"></span>
+                  <span x-show="(bill.installmentTotal || bill.installment_total) > 1">
+                    <span x-text="bill.installment"></span>/<span x-text="bill.installmentTotal || bill.installment_total"></span>
                   </span>
-                  <span x-show="bill.installmentTotal <= 1">—</span>
+                  <span x-show="(bill.installmentTotal || bill.installment_total) <= 1">—</span>
                 </td>
                 <td class="px-4 py-2 font-semibold" x-text="formatCurrency(bill.amount)"></td>
-                <td class="px-4 py-2" x-text="formatDate(bill.dueDate)"></td>
+                <td class="px-4 py-2" x-text="bill.dueDate ? new Date(bill.dueDate + 'T00:00:00').toLocaleDateString('pt-BR') : '—'"></td>
                 <td class="px-4 py-2">
                   <span x-show="isOverdue(bill)"
                         class="bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 text-xs font-bold px-2 py-1 rounded-full">
@@ -376,14 +376,14 @@
                         x-text="categoryName(bill.categoryId)"></span>
                 </td>
                 <td class="p-3">
-                  <span x-show="bill.installmentTotal > 1">
+                  <span x-show="(bill.installmentTotal || bill.installment_total) > 1">
                     <span x-text="bill.installment"></span> /
-                    <span x-text="bill.installmentTotal"></span>
+                    <span x-text="bill.installmentTotal || bill.installment_total"></span>
                   </span>
-                  <span x-show="bill.installmentTotal <= 1">—</span>
+                  <span x-show="(bill.installmentTotal || bill.installment_total) <= 1">—</span>
                 </td>
                 <td class="p-3" x-text="formatCurrency(bill.amount)"></td>
-                <td class="p-3" x-text="bill.dueDate"></td>
+                <td class="p-3" x-text="bill.dueDate ? new Date(bill.dueDate + 'T00:00:00').toLocaleDateString('pt-BR') : '—'"></td>
                 <td class="p-3">
                   <span x-show="bill.status==='paga' && !isPaidLate(bill)" class="text-success font-bold">✅ Paga</span>
                   <span x-show="bill.status==='paga' && isPaidLate(bill)" class="text-orange-600 font-bold">⚠️ <span x-text="`${bill.days_late}d atrasado`"></span></span>
@@ -704,7 +704,7 @@
                   <td class="p-2" x-text="bill.provider"></td>
                   <td class="p-2" x-text="categoryName(bill.categoryId)"></td>
                   <td class="p-2" x-text="formatCurrency(bill.amount)"></td>
-                  <td class="p-2" x-text="bill.dueDate"></td>
+                  <td class="p-2" x-text="bill.dueDate ? new Date(bill.dueDate + 'T00:00:00').toLocaleDateString('pt-BR') : '—'"></td>
                   <td class="p-2">
                     <span x-show="bill.status==='paga' && !isPaidLate(bill)" class="text-success font-bold">✅ Paga</span>
                     <span x-show="bill.status==='paga' && isPaidLate(bill)" class="text-orange-600 font-bold">⚠️ <span x-text="`${bill.days_late}d atrasado`"></span></span>
