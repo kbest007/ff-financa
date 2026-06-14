@@ -181,19 +181,6 @@
             <option value="atrasada">Atrasadas</option>
           </select>
 
-          <input type="month"
-                 class="px-3 py-2 rounded text-black"
-                 x-model="filterMonth"
-                 x-show="!showAllMonths"
-                 :title="'Filtrando: ' + filterMonth">
-
-          <button @click="showAllMonths = !showAllMonths; if(!showAllMonths) filterMonth = new Date().toISOString().slice(0,7)"
-                  class="px-3 py-2 rounded text-sm font-semibold"
-                  :class="showAllMonths ? 'bg-accent text-black' : 'bg-gray-500 text-white'"
-                  :title="showAllMonths ? 'Mostrando todos os meses' : 'Mostrando apenas o mês selecionado'">
-            <span x-text="showAllMonths ? '📋 Todos os meses' : '📅 Só este mês'"></span>
-          </button>
-
           <button @click="togglePayPanel()"
                   class="bg-success px-4 py-2 rounded">
             A Pagar
@@ -291,20 +278,20 @@
 
       <section class="grid md:grid-cols-4 gap-4 mb-6">
         <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 class="font-bold text-sm">Pendentes <span x-show="!showAllMonths" class="text-gray-400 font-normal text-xs" x-text="'(' + filterMonth + ')'"></span></h2>
+          <h2 class="font-bold">Pendentes</h2>
           <p class="text-3xl" x-text="pendingCount()"></p>
         </div>
         <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 class="font-bold text-warning text-sm">Atrasadas <span class="text-gray-400 font-normal text-xs">(total)</span></h2>
+          <h2 class="font-bold text-warning">Atrasadas</h2>
           <p class="text-3xl text-warning" x-text="overdueCount()"></p>
         </div>
         <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 class="font-bold text-success text-sm">Pago Hoje</h2>
+          <h2 class="font-bold text-success">Pago Hoje</h2>
           <p class="text-2xl text-success font-bold"
              x-text="formatCurrency(totalPaidToday())"></p>
         </div>
         <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 class="font-bold text-sm">A Pagar <span x-show="!showAllMonths" class="text-gray-400 font-normal text-xs" x-text="'(' + filterMonth + ')'"></span></h2>
+          <h2 class="font-bold">Total Geral</h2>
           <p class="text-2xl" x-text="formatCurrency(totalAmount())"></p>
         </div>
       </section>
@@ -326,7 +313,7 @@
           <tbody>
             <template x-for="bill in filteredBills()" :key="bill.id">
               <tr class="border-b border-gray-200 dark:border-gray-700"
-                  :class="{'bg-red-100 dark:bg-red-900': isOverdue(bill)}">
+                  :class="{'bg-red-100 dark:bg-red-900': isOverdue(bill), 'bg-orange-100 dark:bg-orange-900': bill.status==='paga' && isPaidLate(bill)}">
                 <td class="p-3" x-text="bill.provider"></td>
                 <td class="p-3">
                   <span class="px-2 py-1 rounded text-white text-xs"
@@ -343,7 +330,8 @@
                 <td class="p-3" x-text="formatCurrency(bill.amount)"></td>
                 <td class="p-3" x-text="bill.dueDate"></td>
                 <td class="p-3">
-                  <span x-show="bill.status==='paga'" class="text-success font-bold">Paga</span>
+                  <span x-show="bill.status==='paga' && !isPaidLate(bill)" class="text-success font-bold">✅ Paga</span>
+                  <span x-show="bill.status==='paga' && isPaidLate(bill)" class="text-orange-600 font-bold">⚠️ <span x-text="`${bill.days_late}d atrasado`"></span></span>
                   <span x-show="bill.status!=='paga' && isOverdue(bill)" class="text-warning font-bold">Atrasada</span>
                   <span x-show="bill.status==='pendente' && !isOverdue(bill)" class="text-yellow-500 font-bold">Pendente</span>
                 </td>
@@ -657,13 +645,14 @@
             </thead>
             <tbody>
               <template x-for="bill in filteredReportBills()" :key="bill.id">
-                <tr class="border-b" :class="{'bg-red-100 dark:bg-red-900': isOverdue(bill)}">
+                <tr class="border-b" :class="{'bg-red-100 dark:bg-red-900': isOverdue(bill), 'bg-orange-100 dark:bg-orange-900': bill.status==='paga' && isPaidLate(bill)}">
                   <td class="p-2" x-text="bill.provider"></td>
                   <td class="p-2" x-text="categoryName(bill.categoryId)"></td>
                   <td class="p-2" x-text="formatCurrency(bill.amount)"></td>
                   <td class="p-2" x-text="bill.dueDate"></td>
                   <td class="p-2">
-                    <span x-show="bill.status==='paga'" class="text-success font-bold">Paga</span>
+                    <span x-show="bill.status==='paga' && !isPaidLate(bill)" class="text-success font-bold">✅ Paga</span>
+                    <span x-show="bill.status==='paga' && isPaidLate(bill)" class="text-orange-600 font-bold">⚠️ <span x-text="`${bill.days_late}d atrasado`"></span></span>
                     <span x-show="bill.status!=='paga' && isOverdue(bill)" class="text-warning font-bold">Atrasada</span>
                     <span x-show="bill.status==='pendente' && !isOverdue(bill)" class="text-yellow-500 font-bold">Pendente</span>
                   </td>
@@ -814,8 +803,6 @@
         // filtros e telas
         search: '',
         filterStatus: '',
-        filterMonth: new Date().toISOString().slice(0, 7),
-        showAllMonths: false,
         showPayPanel: true,
         showBillModal: false,
         showCategoryModal: false,
@@ -1036,21 +1023,18 @@
         toggleDark() { document.documentElement.classList.toggle('dark'); },
 
         // ---------- LISTAS ----------
-        // Painel "A Pagar": só pendentes/atrasadas do mês selecionado + todas as atrasadas
-        billsToPay() {
-          return this.bills.filter(b => {
-            if (b.status === 'paga') return false;
-            if (this.showAllMonths) return true;
-            const billMonth = b.dueDate ? b.dueDate.slice(0, 7) : '';
-            return billMonth === this.filterMonth || this.isOverdue(b);
-          });
-        },
+        billsToPay() { return this.bills.filter(b => b.status !== 'paga'); },
 
         isOverdue(bill) {
           if (bill.status === 'paga') return false;
           const hoje = new Date(); hoje.setHours(0,0,0,0);
           const venc = new Date(bill.dueDate + 'T00:00:00'); venc.setHours(0,0,0,0);
           return venc < hoje;
+        },
+
+        isPaidLate(bill) {
+          if (bill.status !== 'paga') return false;
+          return bill.days_late > 0;
         },
 
         filteredBills() {
@@ -1060,16 +1044,7 @@
             if (b.status === 'paga') status = 'paga';
             else if (this.isOverdue(b)) status = 'atrasada';
             const matchStatus = !this.filterStatus || status === this.filterStatus;
-
-            // Filtro de mês: mostra contas do mês selecionado + atrasadas (sempre visíveis)
-            let matchMonth = true;
-            if (!this.showAllMonths) {
-              const billMonth = b.dueDate ? b.dueDate.slice(0, 7) : '';
-              const isOverdue = this.isOverdue(b);
-              matchMonth = billMonth === this.filterMonth || isOverdue;
-            }
-
-            return matchSearch && matchStatus && matchMonth;
+            return matchSearch && matchStatus;
           });
         },
 
@@ -1111,27 +1086,14 @@
           document.body.appendChild(link); link.click(); document.body.removeChild(link);
         },
 
-        // Cards de resumo: refletem o mês visível
-        billsInView() {
-          return this.bills.filter(b => {
-            if (this.showAllMonths) return true;
-            const billMonth = b.dueDate ? b.dueDate.slice(0, 7) : '';
-            return billMonth === this.filterMonth || this.isOverdue(b);
-          });
-        },
-
-        pendingCount() {
-          return this.billsInView().filter(b => b.status === 'pendente' && !this.isOverdue(b)).length;
-        },
+        pendingCount() { return this.bills.filter(b => b.status === 'pendente' && !this.isOverdue(b)).length; },
         overdueCount() { return this.bills.filter(b => this.isOverdue(b)).length; },
         totalPaidToday() {
           const hoje = new Date().toISOString().split('T')[0];
           return this.bills.filter(b => b.status === 'paga' && b.paidDate === hoje)
                            .reduce((s, b) => s + Number(b.paidAmount || 0), 0);
         },
-        totalAmount() {
-          return this.billsInView().filter(b => b.status !== 'paga').reduce((s, b) => s + Number(b.amount), 0);
-        },
+        totalAmount() { return this.bills.reduce((s, b) => s + Number(b.amount), 0); },
 
         formatCurrency(v) {
           return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -1179,7 +1141,12 @@
         async payBill(bill) {
           const valorPago = prompt('Informe o valor pago:', bill.amount);
           if (valorPago === null) return;
-          const updates = { status: 'paga', paidAmount: Number(valorPago), paidDate: new Date().toISOString().split('T')[0] };
+          const paidDate = new Date().toISOString().split('T')[0];
+          const dueDate = bill.dueDate;
+          const dueD = new Date(dueDate + 'T00:00:00');
+          const paidD = new Date(paidDate + 'T00:00:00');
+          const daysLate = Math.max(0, Math.floor((paidD - dueD) / (1000 * 60 * 60 * 24)));
+          const updates = { status: 'paga', paidAmount: Number(valorPago), paidDate: paidDate, days_late: daysLate };
           const { data, error } = await supabaseClient.from('bills').update(updates).eq('id', bill.id).select();
           if (error) { this.showToast('Erro ao registrar pagamento', 'error'); return; }
           if (data?.length) { const idx = this.bills.findIndex(b => b.id === bill.id); if (idx !== -1) this.bills.splice(idx, 1, data[0]); }
