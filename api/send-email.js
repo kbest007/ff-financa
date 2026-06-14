@@ -21,34 +21,34 @@ export default async function handler(req, res) {
   const dataFormatada = hoje.toISOString().split('T')[0];
 
   try {
-    // 1. Busca contas que vencem hoje e não estão pagas
-    const { data: contas, error } = await supabase
-      .from('contas')
+    // 1. Busca na tabela 'bills' as contas que vencem hoje e não estão pagas
+    const { data: bills, error } = await supabase
+      .from('bills')
       .select('*')
       .eq('data_vencimento', dataFormatada)
       .eq('pago', false);
 
     if (error) throw error;
 
-    if (!contas || contas.length === 0) {
+    if (!bills || bills.length === 0) {
       return res.status(200).json({ message: 'Nenhuma conta vencendo hoje.' });
     }
 
     // 2. Monta a lista de contas para o e-mail
     let listaContasHtml = '';
-    contas.forEach(conta => {
-      listaContasHtml += `<li><strong>${conta.descricao}</strong>: R$ ${conta.valor.toFixed(2)}</li>`;
+    bills.forEach(bill => {
+      listaContasHtml += `<li><strong>${bill.descricao}</strong>: R$ ${bill.valor.toFixed(2)}</li>`;
     });
 
     // 3. Configura e envia o e-mail informativo
     const mailOptions = {
       from: process.env.GMAIL_USER,
-      to: process.env.GMAIL_USER, // Envia para você mesmo
-      subject: `⚠️ Alerta de Vencimento: ${contas.length} conta(s) vence(m) hoje!`,
+      to: process.env.GMAIL_USER, 
+      subject: `⚠️ Alerta de Vencimento: ${bills.length} conta(s) vence(m) hoje!`,
       html: `
         <div style="font-family: sans-serif; padding: 20px; color: #333;">
           <h2>Bom dia!</h2>
-          <p>Este é um lembrete automático de que existem contas do seu sistema de finanças vencendo hoje (<strong>${dataFormatada.split('-').reverse().join('/')}</strong>):</p>
+          <p>Este é um lembrete automático de que existem contas vencendo hoje (<strong>${dataFormatada.split('-').reverse().join('/')}</strong>):</p>
           <ul style="font-size: 16px; line-height: 1.6;">
             ${listaContasHtml}
           </ul>
