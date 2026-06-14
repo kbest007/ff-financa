@@ -310,6 +310,7 @@
               <th class="p-3 text-left">Vencimento</th>
               <th class="p-3 text-left">Status</th>
               <th class="p-3 text-left">Pago</th>
+              <th class="p-3 text-left">Data Pago</th>
               <th class="p-3 text-center">Ações</th>
             </tr>
           </thead>
@@ -343,6 +344,12 @@
                         x-text="formatCurrency(bill.paidAmount)"
                         class="font-bold text-success"></span>
                   <span x-show="!bill.paidAmount">—</span>
+                </td>
+                <td class="p-3">
+                  <span x-show="bill.paidDate"
+                        x-text="formatDate(bill.paidDate)"
+                        class="text-sm text-gray-600 dark:text-gray-300"></span>
+                  <span x-show="!bill.paidDate" class="text-gray-400">—</span>
                 </td>
                 <td class="p-3 text-center space-x-1">
                   <button @click="payBill(bill)"
@@ -643,6 +650,7 @@
                 <th class="p-2 text-left">Categoria</th>
                 <th class="p-2 text-left">Valor</th>
                 <th class="p-2 text-left">Vencimento</th>
+                <th class="p-2 text-left">Data Pago</th>
                 <th class="p-2 text-left">Status</th>
               </tr>
             </thead>
@@ -653,6 +661,10 @@
                   <td class="p-2" x-text="categoryName(bill.categoryId)"></td>
                   <td class="p-2" x-text="formatCurrency(bill.amount)"></td>
                   <td class="p-2" x-text="bill.dueDate"></td>
+                  <td class="p-2">
+                    <span x-show="bill.paidDate" x-text="formatDate(bill.paidDate)" class="text-sm text-gray-600 dark:text-gray-300"></span>
+                    <span x-show="!bill.paidDate" class="text-gray-400">—</span>
+                  </td>
                   <td class="p-2">
                     <span x-show="bill.status==='paga' && !isPaidLate(bill)" class="text-success font-bold">✅ Paga</span>
                     <span x-show="bill.status==='paga' && isPaidLate(bill)" class="text-orange-600 font-bold">⚠️ <span x-text="`${bill.days_late}d atrasado`"></span></span>
@@ -666,7 +678,7 @@
               <tr>
                 <td colspan="2" class="p-2 font-bold text-right">Totais:</td>
                 <td class="p-2 font-bold" x-text="formatCurrency(reportTotalAmount())"></td>
-                <td colspan="2"></td>
+                <td colspan="3"></td>
               </tr>
             </tfoot>
           </table>
@@ -1103,6 +1115,11 @@
 
         formatCurrency(v) {
           return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        },
+        formatDate(d) {
+          if (!d) return '—';
+          const [y, m, day] = d.split('-');
+          return `${day}/${m}/${y}`;
         },
         categoryName(id) { const c = this.categories.find(c => String(c.id) === String(id)); return c ? c.name : ''; },
         categoryColor(id) { const c = this.categories.find(c => String(c.id) === String(id)); return c ? c.color : '#999'; },
