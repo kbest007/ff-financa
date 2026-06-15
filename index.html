@@ -880,6 +880,12 @@
         notifications: [],
         adminLicenses: [],
 
+        // Sessão única e auto-logout
+        _sessionToken: null,
+        _inactivityTimer: null,
+        _inactivityMinutes: 15,
+        _payingBills: new Set(), // proteção contra pagamento duplo
+
         // Licença / Trial do usuário logado
         licenseExpired: false,
         licenseActive: false,
@@ -926,6 +932,42 @@
           this.user = user;
 
           if (user) {
+            // ── SESSÃO ÚNICA ──────────────────────────────────────────
+            // Gera um token para esta aba/janela
+            const newToken = crypto.randomUUID();
+            const storageKey = `ff_session_${user.id}`;
+            const existingToken = localStorage.getItem(storageKey);
+
+            if (existingToken && existingToken !== newToken) {
+              // Já há outra sessão ativa; bloqueia esta
+              await supabaseClient.auth.signOut();
+              alert('⚠️ Já existe uma sessão ativa em outro dispositivo ou aba. Faça login novamente.');
+              location.reload();
+              return;
+            }
+
+            // Registra o token desta sessão
+            this._sessionToken = newToken;
+            localStorage.setItem(storageKey, newToken);
+
+            // Verifica em outras abas se o token foi substituído (ou seja, outra aba fez login depois)
+            window.addEventListener('storage', (e) => {
+              if (e.key === storageKey && e.newValue !== this._sessionToken) {
+                supabaseClient.auth.signOut().then(() => {
+                  alert('⚠️ Sua sessão foi encerrada porque outro login foi detectado.');
+                  location.reload();
+                });
+              }
+            });
+
+            // ── AUTO-LOGOUT POR INATIVIDADE ───────────────────────────
+            this._resetInactivityTimer();
+            const activityEvents = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll', 'click'];
+            activityEvents.forEach(evt => {
+              window.addEventListener(evt, () => this._resetInactivityTimer(), { passive: true });
+            });
+
+            // ── CARREGAMENTO NORMAL ───────────────────────────────────
             await this.checkLicense(user.id);
 
             if (!this.licenseExpired) {
@@ -941,6 +983,18 @@
               this.reportEndDate = `${year}-12-31`;
             }
           }
+        },
+
+        // ── TIMER DE INATIVIDADE ─────────────────────────────────────
+        _resetInactivityTimer() {
+          clearTimeout(this._inactivityTimer);
+          this._inactivityTimer = setTimeout(async () => {
+            const storageKey = `ff_session_${this.user?.id}`;
+            localStorage.removeItem(storageKey);
+            await supabaseClient.auth.signOut();
+            alert(`⏱️ Você foi desconectado por inatividade (${this._inactivityMinutes} minutos sem ação).`);
+            location.reload();
+          }, this._inactivityMinutes * 60 * 1000);
         },
 
         isAdmin() {
@@ -1117,6 +1171,11 @@
 
         // ---------- AUTH ----------
         async logout() {
+          // Limpa o token de sessão ao sair manualmente
+          if (this.user) {
+            localStorage.removeItem(`ff_session_${this.user.id}`);
+          }
+          clearTimeout(this._inactivityTimer);
           await supabaseClient.auth.signOut();
           location.reload();
         },
@@ -1392,18 +1451,44 @@
         },
 
         async payBill(bill) {
-          const valorPago = prompt('Informe o valor pago:', bill.amount);
-          if (valorPago === null) return;
-          const paidDate = new Date().toISOString().split('T')[0];
-          const dueDate = bill.dueDate;
-          const dueD = new Date(dueDate + 'T00:00:00');
-          const paidD = new Date(paidDate + 'T00:00:00');
-          const daysLate = Math.max(0, Math.floor((paidD - dueD) / (1000 * 60 * 60 * 24)));
-          const updates = { status: 'paga', paidAmount: Number(valorPago), paidDate: paidDate, days_late: daysLate };
-          const { data, error } = await supabaseClient.from('bills').update(updates).eq('id', bill.id).select();
-          if (error) { this.showToast('Erro ao registrar pagamento', 'error'); return; }
-          if (data?.length) { const idx = this.bills.findIndex(b => b.id === bill.id); if (idx !== -1) this.bills.splice(idx, 1, data[0]); }
-          this.showToast('Pagamento registrado', 'success');
+          // ── PROTEÇÃO CONTRA PAGAMENTO DUPLO ──────────────────────────
+          // 1) Verifica estado local imediato
+          if (bill.status === 'paga') {
+            this.showToast('⚠️ Esta conta já foi paga anteriormente!', 'warning');
+            return;
+          }
+          // 2) Trava para evitar dois cliques simultâneos na mesma conta
+          if (this._payingBills.has(bill.id)) {
+            this.showToast('⏳ Pagamento já está sendo processado...', 'warning');
+            return;
+          }
+          // 3) Confirma no banco de dados se já não foi paga por outra sessão
+          const { data: freshBill, error: checkError } = await supabaseClient
+            .from('bills').select('status').eq('id', bill.id).single();
+          if (checkError) { this.showToast('Erro ao verificar status da conta', 'error'); return; }
+          if (freshBill?.status === 'paga') {
+            this.showToast('⚠️ Esta conta já foi paga (por outra sessão). Atualizando lista...', 'warning');
+            await this.loadBills();
+            return;
+          }
+
+          this._payingBills.add(bill.id);
+          try {
+            const valorPago = prompt('Informe o valor pago:', bill.amount);
+            if (valorPago === null) return;
+            const paidDate = new Date().toISOString().split('T')[0];
+            const dueDate = bill.dueDate;
+            const dueD = new Date(dueDate + 'T00:00:00');
+            const paidD = new Date(paidDate + 'T00:00:00');
+            const daysLate = Math.max(0, Math.floor((paidD - dueD) / (1000 * 60 * 60 * 24)));
+            const updates = { status: 'paga', paidAmount: Number(valorPago), paidDate: paidDate, days_late: daysLate };
+            const { data, error } = await supabaseClient.from('bills').update(updates).eq('id', bill.id).select();
+            if (error) { this.showToast('Erro ao registrar pagamento', 'error'); return; }
+            if (data?.length) { const idx = this.bills.findIndex(b => b.id === bill.id); if (idx !== -1) this.bills.splice(idx, 1, data[0]); }
+            this.showToast('Pagamento registrado', 'success');
+          } finally {
+            this._payingBills.delete(bill.id);
+          }
         },
 
         editBill(bill) { this.editMode = true; this.form = { ...bill, installments: bill.installmentTotal }; this.showBillModal = true; },
