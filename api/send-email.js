@@ -23,23 +23,38 @@ export default async function handler(req, res) {
     // 1. Busca todos os usuários que têm contas PENDENTES vencendo hoje ou antes
     const { data: bills, error: billsError } = await supabase
       .from('bills')
-      .select('*, profiles(email)') // Faz a ligação com a tabela profiles
+      .select('*')
       .eq('status', 'pendente')
       .lte('dueDate', dataFormatada);
 
     if (billsError) throw billsError;
     if (!bills || bills.length === 0) return res.status(200).json({ message: 'Nenhuma conta pendente.' });
 
-    // 2. Agrupa as contas por usuário
+    // 2. Pega os emails dos usuários (sem foreign key, faz manualmente)
+    const userIds = [...new Set(bills.map(b => b.user_id))];
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('user_id, email')
+      .in('user_id', userIds);
+
+    if (profilesError) throw profilesError;
+
+    // 3. Cria um mapa de user_id → email
+    const emailMap = {};
+    profiles.forEach(p => {
+      emailMap[p.user_id] = p.email;
+    });
+
+    // 4. Agrupa as contas por usuário
     const gruposPorUsuario = bills.reduce((acc, bill) => {
-      const email = bill.profiles?.email;
+      const email = emailMap[bill.user_id];
       if (!email) return acc;
       if (!acc[email]) acc[email] = [];
       acc[email].push(bill);
       return acc;
     }, {});
 
-    // 3. Envia e-mail para cada usuário encontrado
+    // 5. Envia e-mail para cada usuário encontrado
     for (const email in gruposPorUsuario) {
       const contasDoUsuario = gruposPorUsuario[email];
       let listaHtml = contasDoUsuario.map(b => 
@@ -48,7 +63,7 @@ export default async function handler(req, res) {
 
       await transporter.sendMail({
         from: process.env.GMAIL_USER,
-        to: email, // Envia para o e-mail do dono da conta
+        to: email,
         subject: '⚠️ Alerta: Contas Pendentes',
         html: `<div style="font-family: sans-serif;"><h2>Olá!</h2><p>Você tem contas pendentes:</p><ul>${listaHtml}</ul></div>`
       });
