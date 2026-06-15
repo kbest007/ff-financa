@@ -21,11 +21,11 @@ export default async function handler(req, res) {
   const dataFormatada = hoje.toISOString().split('T')[0];
 
   try {
-    // 1. Busca contas com status 'PENDING' que vencem HOJE ou ANTES (Atrasadas)
+    // 1. Busca contas com status 'PENDING' ou 'Atrasada' que vencem HOJE ou ANTES
     const { data: bills, error } = await supabase
       .from('bills')
       .select('*')
-      .eq('status', 'PENDING')
+      .in('status', ['PENDING', 'Atrasada']) // Busca qualquer um dos dois status
       .lte('dueDate', dataFormatada); // lte = Menor ou igual (pega tudo que venceu até hoje)
 
     if (error) throw error;
