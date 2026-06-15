@@ -20,17 +20,17 @@ export default async function handler(req, res) {
   const dataFormatada = hoje.toISOString().split('T')[0];
 
   try {
-    // 1. Busca todos os usuários que têm contas PENDENTES vencendo hoje ou antes
+    // 1. Busca contas PENDENTES que vencem HOJE OU ESTÃO ATRASADAS
     const { data: bills, error: billsError } = await supabase
       .from('bills')
       .select('*')
       .eq('status', 'pendente')
-      .lte('dueDate', dataFormatada);
+      .lte('dueDate', dataFormatada); // Vence hoje ou antes (atrasadas)
 
     if (billsError) throw billsError;
     if (!bills || bills.length === 0) return res.status(200).json({ message: 'Nenhuma conta pendente.' });
 
-    // 2. Pega os emails dos usuários (sem foreign key, faz manualmente)
+    // 2. Pega os emails dos usuários
     const userIds = [...new Set(bills.map(b => b.user_id))];
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
@@ -57,15 +57,18 @@ export default async function handler(req, res) {
     // 5. Envia e-mail para cada usuário encontrado
     for (const email in gruposPorUsuario) {
       const contasDoUsuario = gruposPorUsuario[email];
-      let listaHtml = contasDoUsuario.map(b => 
-        `<li><strong>${b.provider}</strong> (Vencimento: ${b.dueDate.split('-').reverse().join('/')}): R$ ${b.amount}</li>`
-      ).join('');
+      let listaHtml = contasDoUsuario.map(b => {
+        const vencimento = b.dueDate.split('-').reverse().join('/');
+        const diasAtraso = Math.floor((new Date() - new Date(b.dueDate)) / (1000 * 60 * 60 * 24));
+        const status = diasAtraso > 0 ? `(${diasAtraso} dias atrasada)` : '(vence hoje)';
+        return `<li><strong>${b.provider}</strong> - Vencimento: ${vencimento} ${status} - R$ ${b.amount}</li>`;
+      }).join('');
 
       await transporter.sendMail({
         from: process.env.GMAIL_USER,
         to: email,
-        subject: '⚠️ Alerta: Contas Pendentes',
-        html: `<div style="font-family: sans-serif;"><h2>Olá!</h2><p>Você tem contas pendentes:</p><ul>${listaHtml}</ul></div>`
+        subject: '⚠️ Alerta: Contas Pendentes - AÇÃO NECESSÁRIA',
+        html: `<div style="font-family: sans-serif;"><h2>Olá!</h2><p>Você tem contas pendentes que vencem hoje ou estão atrasadas:</p><ul>${listaHtml}</ul><p style="color: red;"><strong>Por favor, regularize em breve!</strong></p></div>`
       });
     }
 
