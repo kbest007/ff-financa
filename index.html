@@ -863,8 +863,17 @@
     async function login() {
       const email = document.getElementById('email').value;
       const password = document.getElementById('password').value;
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
       if (error) { alert(error.message); return; }
+
+      // ── SESSÃO ÚNICA: grava novo token imediatamente ──────────────
+      // Isso dispara o evento 'storage' em todas as outras abas/dispositivos
+      // que estiverem com a mesma conta aberta, forçando o logout delas.
+      if (data?.user) {
+        const newToken = crypto.randomUUID();
+        localStorage.setItem(`ff_session_${data.user.id}`, newToken);
+      }
+
       location.reload();
     }
   </script>
@@ -933,28 +942,24 @@
 
           if (user) {
             // ── SESSÃO ÚNICA ──────────────────────────────────────────
-            // Gera um token para esta aba/janela
-            const newToken = crypto.randomUUID();
+            // O token já foi gravado pela função login() antes do reload.
+            // Aqui apenas lemos o token atual e nos registramos como a sessão ativa.
             const storageKey = `ff_session_${user.id}`;
-            const existingToken = localStorage.getItem(storageKey);
+            this._sessionToken = localStorage.getItem(storageKey);
 
-            if (existingToken && existingToken !== newToken) {
-              // Já há outra sessão ativa; bloqueia esta
-              await supabaseClient.auth.signOut();
-              alert('⚠️ Já existe uma sessão ativa em outro dispositivo ou aba. Faça login novamente.');
-              location.reload();
-              return;
+            // Se por algum motivo não houver token (ex: primeiro acesso via link mágico),
+            // geramos e gravamos agora.
+            if (!this._sessionToken) {
+              this._sessionToken = crypto.randomUUID();
+              localStorage.setItem(storageKey, this._sessionToken);
             }
 
-            // Registra o token desta sessão
-            this._sessionToken = newToken;
-            localStorage.setItem(storageKey, newToken);
-
-            // Verifica em outras abas se o token foi substituído (ou seja, outra aba fez login depois)
+            // Escuta mudanças no localStorage vindas de OUTRAS abas/dispositivos.
+            // Se o token mudar, significa que alguém fez login em outro lugar → desconecta aqui.
             window.addEventListener('storage', (e) => {
               if (e.key === storageKey && e.newValue !== this._sessionToken) {
                 supabaseClient.auth.signOut().then(() => {
-                  alert('⚠️ Sua sessão foi encerrada porque outro login foi detectado.');
+                  alert('⚠️ Sua sessão foi encerrada porque um novo login foi detectado em outro dispositivo ou aba.');
                   location.reload();
                 });
               }
