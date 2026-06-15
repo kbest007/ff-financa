@@ -15,46 +15,45 @@ const transporter = nodemailer.createTransport({
 });
 
 export default async function handler(req, res) {
-  // Data de hoje (YYYY-MM-DD)
+  // Define a data de hoje (ajustada para o fuso horário correto)
   const hoje = new Date();
   hoje.setHours(hoje.getHours() - 3);
   const dataFormatada = hoje.toISOString().split('T')[0];
 
   try {
-    // 1. Busca TUDO que vence hoje ou antes, sem filtrar status
+    // 1. Busca contas com status 'pendente' que vencem HOJE ou ANTES
     const { data: bills, error } = await supabase
       .from('bills')
       .select('*')
-      .lte('dueDate', dataFormatada); 
+      .eq('status', 'pendente') 
+      .lte('dueDate', dataFormatada);
 
     if (error) throw error;
 
-    // Log para debug no console da Vercel
-    console.log("Data de hoje:", dataFormatada);
-    console.log("Contas encontradas:", bills);
-
     if (!bills || bills.length === 0) {
-      return res.status(200).json({ 
-        message: 'Nenhuma conta encontrada.',
-        debug_date: dataFormatada 
-      });
+      return res.status(200).json({ message: 'Nenhuma conta pendente ou vencida.' });
     }
 
-    // 2. Monta a lista de contas
+    // 2. Monta a lista de contas para o e-mail
     let listaContasHtml = '';
     bills.forEach(bill => {
-      listaContasHtml += `<li><strong>${bill.provider}</strong> (Vencimento: ${bill.dueDate}): R$ ${bill.amount}</li>`;
+      const dataVenc = bill.dueDate.split('-').reverse().join('/');
+      listaContasHtml += `<li><strong>${bill.provider}</strong> (Vencimento: ${dataVenc}): R$ ${bill.amount.toFixed(2)}</li>`;
     });
 
-    // 3. Envia e-mail
+    // 3. Configura e envia o e-mail
     const mailOptions = {
       from: process.env.GMAIL_USER,
       to: process.env.GMAIL_USER, 
-      subject: `⚠️ Alerta: ${bills.length} conta(s) encontrada(s)`,
+      subject: `⚠️ Alerta: Você tem ${bills.length} conta(s) pendente(s)!`,
       html: `
-        <div style="font-family: sans-serif;">
-          <h2>Contas vencidas ou hoje:</h2>
-          <ul>${listaContasHtml}</ul>
+        <div style="font-family: sans-serif; padding: 20px; color: #333;">
+          <h2>Olá!</h2>
+          <p>Este é um lembrete das suas contas que ainda não foram pagas:</p>
+          <ul style="font-size: 16px; line-height: 1.6;">
+            ${listaContasHtml}
+          </ul>
+          <p>Por favor, verifique no painel financeiro.</p>
         </div>
       `,
     };
