@@ -1,8 +1,12 @@
 {
-     "crons": [
-       {
-         "path": "/api/send-email",
-         "schedule": "0 10 * * *"
-       }
-     ]
-   }
+  "crons": [
+    {
+      "path": "/api/cron/notify-bills",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/notify-bills",
+      "schedule": "30 16 * * *"
+    }
+  ]
+}
