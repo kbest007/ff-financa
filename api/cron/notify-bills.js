@@ -9,8 +9,8 @@ const supabase = createClient(
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.GMAIL_USER,          
-    pass: process.env.GMAIL_APP_PASSWORD   
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD
   }
 });
 
@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     const { data: bills, error: billsError } = await supabase
       .from('bills')
       .select('id, provider, amount, dueDate, status, user_id')
-      .eq('dueDate', hoje)
+      .lte('dueDate', hoje)
       .neq('status', 'paga');
 
     if (billsError) throw billsError;
@@ -50,31 +50,38 @@ export default async function handler(req, res) {
 
     const emailPromises = bills.map(async (bill) => {
       const userEmail = emailMap[bill.user_id];
-      if (!userEmail) return; 
+      if (!userEmail) return;
 
       const valorFormatado = Number(bill.amount).toLocaleString('pt-BR', {
         style: 'currency',
         currency: 'BRL'
       });
 
-      const dataFormatada = hoje.split('-').reverse().join('/');
+      const dataFormatada = bill.dueDate.split('-').reverse().join('/');
+      const atrasada = bill.dueDate < hoje;
+
+      const assunto = atrasada
+        ? `🚨 Conta Atrasada: ${bill.provider} (venceu em ${dataFormatada})`
+        : `⚠️ Lembrete de Vencimento: ${bill.provider}`;
+
+      const mensagemData = atrasada
+        ? `venceu em <strong>${dataFormatada}</strong> e ainda consta como <strong>Pendente</strong>`
+        : `tem vencimento programado para <strong>hoje</strong>`;
 
       return transporter.sendMail({
         from: `"FF Finanças" <${process.env.GMAIL_USER}>`,
         to: userEmail,
-        subject: `⚠️ Lembrete de Vencimento: ${bill.provider}`,
+        subject: assunto,
         html: `
           <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px;">
             <h2 style="color: #2C3E50; margin-bottom: 20px;">Lembrete de Pagamento</h2>
             <p>Olá,</p>
-            <p>Informamos que a conta abaixo consta como <strong>Pendente</strong> no sistema e tem vencimento programado para <strong>hoje</strong>:</p>
-            
-            <div style="background-color: #f9f9f9; padding: 15px; border-left: 4px solid #E67E22; margin: 20px 0; border-radius: 4px;">
+            <p>Informamos que a conta abaixo ${mensagemData} no sistema:</p>
+            <div style="background-color: #f9f9f9; padding: 15px; border-left: 4px solid ${atrasada ? '#C0392B' : '#E67E22'}; margin: 20px 0; border-radius: 4px;">
               <p style="margin: 5px 0;"><strong>Conta:</strong> ${bill.provider}</p>
               <p style="margin: 5px 0;"><strong>Valor:</strong> <span style="color: #C0392B; font-weight: bold;">${valorFormatado}</span></p>
               <p style="margin: 5px 0;"><strong>Vencimento:</strong> ${dataFormatada}</p>
             </div>
-
             <p style="font-size: 14px; color: #777;">Se você já efetuou o pagamento, acesse o sistema e marque a conta como paga para interromper as notificações automáticas.</p>
             <br />
             <a href="https://ff-financa.vercel.app/" style="display: inline-block; background-color: #27AE60; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar o Painel</a>
