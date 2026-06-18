@@ -20,7 +20,13 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log('CRON_SECRET definido:', !!process.env.CRON_SECRET);
+    console.log('Auth header:', req.headers.authorization);
+    console.log('GMAIL_USER definido:', !!process.env.GMAIL_USER);
+    console.log('GMAIL_APP_PASSWORD definido:', !!process.env.GMAIL_APP_PASSWORD);
+
     const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    console.log('Hoje (Brasília):', hoje);
 
     const { data: bills, error: billsError } = await supabase
       .from('bills')
@@ -31,8 +37,11 @@ export default async function handler(req, res) {
     if (billsError) throw billsError;
 
     if (!bills || bills.length === 0) {
+      console.log('Nenhuma conta pendente encontrada.');
       return res.status(200).json({ message: 'Nenhuma conta pendente para hoje.' });
     }
+
+    console.log(`Contas encontradas: ${bills.length}`);
 
     const userIds = [...new Set(bills.map(b => b.user_id))];
 
@@ -66,6 +75,7 @@ export default async function handler(req, res) {
         ? `venceu em <strong>${dataFormatada}</strong> e ainda consta como <strong>Pendente</strong>`
         : `tem vencimento programado para <strong>hoje</strong>`;
 
+      console.log(`Enviando email para: ${userEmail} — conta: ${bill.provider}`);
       return transporter.sendMail({
         from: `"FF Finanças" <${process.env.GMAIL_USER}>`,
         to: userEmail,
@@ -91,6 +101,7 @@ export default async function handler(req, res) {
     });
 
     await Promise.all(emailPromises);
+    console.log(`Sucesso: ${bills.length} e-mails processados.`);
     return res.status(200).json({ message: `Sucesso: ${bills.length} e-mails processados.` });
 
   } catch (error) {
