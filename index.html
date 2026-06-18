@@ -1443,11 +1443,12 @@
                 this.editMode = false;
                 this.resetForm();
                 this.showToast('Parcelas recalculadas com sucesso!', 'success');
+              } else {
                 // Se não é parcelada, apenas atualiza
                 const updates = { provider: this.form.provider, categoryId: this.form.categoryId, amount: encryptValue(this.form.amount), dueDate: this.form.dueDate };
-                const { data, error } = await supabaseClient.from('bills').update(updates).eq('id', this.form.id).select();
-                if (error) throw error;
-                if (data?.length) { const idx = this.bills.findIndex(b => b.id === this.form.id); if (idx !== -1) this.bills.splice(idx, 1, decryptBill(data[0])); }
+                const { data: dataUpd, error: errorUpd } = await supabaseClient.from('bills').update(updates).eq('id', this.form.id).select();
+                if (errorUpd) throw errorUpd;
+                if (dataUpd?.length) { const idx = this.bills.findIndex(b => b.id === this.form.id); if (idx !== -1) this.bills.splice(idx, 1, decryptBill(dataUpd[0])); }
                 this.showBillModal = false;
                 this.editMode = false;
                 this.resetForm();
