@@ -12,6 +12,41 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+  <script>
+    // ── CHAVE SECRETA DE CRIPTOGRAFIA ─────────────────────────────
+    // Somente quem tem acesso ao código-fonte consegue descriptografar.
+    // No Supabase os valores aparecem como texto embaralhado.
+    const FF_SECRET = 'ff@fin#2026$segredo!kbest007';
+
+    function encryptValue(value) {
+      if (value === null || value === undefined || value === '') return value;
+      return CryptoJS.AES.encrypt(String(value), FF_SECRET).toString();
+    }
+
+    function decryptValue(encrypted) {
+      if (encrypted === null || encrypted === undefined || encrypted === '') return encrypted;
+      // Se já for um número (dado antigo não criptografado), retorna direto
+      if (typeof encrypted === 'number') return encrypted;
+      try {
+        const bytes = CryptoJS.AES.decrypt(encrypted, FF_SECRET);
+        const result = bytes.toString(CryptoJS.enc.Utf8);
+        if (!result) return encrypted; // fallback para dados antigos
+        return result;
+      } catch (e) {
+        return encrypted; // fallback para dados antigos não criptografados
+      }
+    }
+
+    function decryptBill(bill) {
+      return {
+        ...bill,
+        amount: Number(decryptValue(bill.amount)) || 0,
+        paidAmount: bill.paidAmount ? (Number(decryptValue(bill.paidAmount)) || 0) : bill.paidAmount
+      };
+    }
+  </script>
+
   <script>
     const { createClient } = supabase;
     const supabaseClient = createClient(
@@ -1192,7 +1227,7 @@
             .from('bills').select('*').eq('user_id', user.id)
             .order('dueDate', { ascending: true });
           if (error) { this.showToast('Erro ao carregar contas', 'error'); return; }
-          this.bills = data || [];
+          this.bills = (data || []).map(decryptBill);
         },
 
         async loadCategories() {
@@ -1394,7 +1429,7 @@
                   const lastDayOfMonth = new Date(newYear, finalMonth + 1, 0).getDate();
                   const finalDay = Math.min(currentDay, lastDayOfMonth);
                   d.setDate(finalDay);
-                  rows.push({ id: crypto.randomUUID(), provider: this.form.provider, categoryId: this.form.categoryId, amount: Number(this.form.amount), dueDate: d.toISOString().split('T')[0], status: 'pendente', paidAmount: null, paidDate: null, installment: i, installmentTotal: total, user_id: user.id });
+                  rows.push({ id: crypto.randomUUID(), provider: this.form.provider, categoryId: this.form.categoryId, amount: encryptValue(this.form.amount), dueDate: d.toISOString().split('T')[0], status: 'pendente', paidAmount: null, paidDate: null, installment: i, installmentTotal: total, user_id: user.id });
                 }
                 const { data, error } = await supabaseClient.from('bills').insert(rows).select();
                 if (error) throw error;
@@ -1402,17 +1437,16 @@
                 // Remover as contas antigas da lista local
                 this.bills = this.bills.filter(b => !oldBills.find(old => old.id === b.id));
                 // Adicionar as novas
-                if (data) this.bills = this.bills.concat(data);
+                if (data) this.bills = this.bills.concat(data.map(decryptBill));
                 this.showBillModal = false;
                 this.editMode = false;
                 this.resetForm();
                 this.showToast('Parcelas recalculadas com sucesso!', 'success');
-              } else {
                 // Se não é parcelada, apenas atualiza
-                const updates = { provider: this.form.provider, categoryId: this.form.categoryId, amount: Number(this.form.amount), dueDate: this.form.dueDate };
+                const updates = { provider: this.form.provider, categoryId: this.form.categoryId, amount: encryptValue(this.form.amount), dueDate: this.form.dueDate };
                 const { data, error } = await supabaseClient.from('bills').update(updates).eq('id', this.form.id).select();
                 if (error) throw error;
-                if (data?.length) { const idx = this.bills.findIndex(b => b.id === this.form.id); if (idx !== -1) this.bills.splice(idx, 1, data[0]); }
+                if (data?.length) { const idx = this.bills.findIndex(b => b.id === this.form.id); if (idx !== -1) this.bills.splice(idx, 1, decryptBill(data[0])); }
                 this.showBillModal = false;
                 this.editMode = false;
                 this.resetForm();
@@ -1435,11 +1469,11 @@
                 const lastDayOfMonth = new Date(newYear, finalMonth + 1, 0).getDate();
                 const finalDay = Math.min(currentDay, lastDayOfMonth);
                 d.setDate(finalDay);
-                rows.push({ id: crypto.randomUUID(), provider: this.form.provider, categoryId: this.form.categoryId, amount: Number(this.form.amount), dueDate: d.toISOString().split('T')[0], status: 'pendente', paidAmount: null, paidDate: null, installment: i, installmentTotal: total, user_id: user.id });
+                rows.push({ id: crypto.randomUUID(), provider: this.form.provider, categoryId: this.form.categoryId, amount: encryptValue(this.form.amount), dueDate: d.toISOString().split('T')[0], status: 'pendente', paidAmount: null, paidDate: null, installment: i, installmentTotal: total, user_id: user.id });
               }
               const { data, error } = await supabaseClient.from('bills').insert(rows).select();
               if (error) throw error;
-              if (data) this.bills = this.bills.concat(data);
+              if (data) this.bills = this.bills.concat(data.map(decryptBill));
               this.showBillModal = false; this.editMode = false; this.resetForm();
               this.showToast('Conta salva com sucesso', 'success');
             }
@@ -1486,10 +1520,10 @@
             const dueD = new Date(dueDate + 'T00:00:00');
             const paidD = new Date(paidDate + 'T00:00:00');
             const daysLate = Math.max(0, Math.floor((paidD - dueD) / (1000 * 60 * 60 * 24)));
-            const updates = { status: 'paga', paidAmount: Number(valorPago), paidDate: paidDate, days_late: daysLate };
+            const updates = { status: 'paga', paidAmount: encryptValue(valorPago), paidDate: paidDate, days_late: daysLate };
             const { data, error } = await supabaseClient.from('bills').update(updates).eq('id', bill.id).select();
             if (error) { this.showToast('Erro ao registrar pagamento', 'error'); return; }
-            if (data?.length) { const idx = this.bills.findIndex(b => b.id === bill.id); if (idx !== -1) this.bills.splice(idx, 1, data[0]); }
+            if (data?.length) { const idx = this.bills.findIndex(b => b.id === bill.id); if (idx !== -1) this.bills.splice(idx, 1, decryptBill(data[0])); }
             this.showToast('Pagamento registrado', 'success');
           } finally {
             this._payingBills.delete(bill.id);
